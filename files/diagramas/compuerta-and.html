@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador — Compuerta AND</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root {
+    --mascara: #0E3B2E;
+    --serigrafia: #F2EFE6;
+    --cobre: #C17A3D;
+    --cobre-claro: #E2A870;
+    --gris-pista: #8B9A94;
+    --linea: rgba(242, 239, 230, 0.16);
+    --led-apagado: #2A4A40;
+    --led-encendido: #6EE79A;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+  }
+
+  body {
+    background: var(--mascara);
+    color: var(--serigrafia);
+    font-family: 'Inter', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 520px;
+    text-align: center;
+  }
+
+  .etiqueta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--cobre-claro);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  h2 {
+    margin: 0 0 20px;
+    font-size: 1.2rem;
+  }
+
+  .circuito {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 20px 0 22px;
+    flex-wrap: wrap;
+  }
+
+  .entradas {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .fila-entrada {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .etiqueta-io {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--gris-pista);
+    width: 14px;
+  }
+
+  .valor {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    width: 40px;
+    text-align: center;
+  }
+
+  #valor-a, #valor-b { color: var(--cobre-claro); font-size: 1.2rem; width: 26px; }
+  #valor-salida { color: var(--led-encendido); font-size: 2rem; width: 56px; }
+
+  .botones {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .boton-toggle {
+    background: transparent;
+    border: 1px solid var(--cobre);
+    color: var(--cobre-claro);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 12px 20px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+  .boton-toggle:hover {
+    background: var(--cobre);
+    color: var(--mascara);
+  }
+
+  .pie-nota {
+    color: var(--gris-pista);
+    font-size: 0.82rem;
+    margin-top: 18px;
+  }
+
+  svg { display: block; }
+
+  .traza {
+    stroke: var(--gris-pista);
+    stroke-width: 2;
+    fill: none;
+    transition: stroke 0.2s ease;
+  }
+  .traza.activa { stroke: var(--led-encendido); }
+
+  .compuerta-cuerpo {
+    fill: none;
+    stroke: var(--serigrafia);
+    stroke-width: 2;
+  }
+
+  .led {
+    fill: var(--led-apagado);
+    stroke: var(--serigrafia);
+    stroke-width: 2;
+    transition: fill 0.2s ease, filter 0.2s ease;
+  }
+  .led.activa {
+    fill: var(--led-encendido);
+    filter: drop-shadow(0 0 5px var(--led-encendido));
+  }
+
+  .tabla-verdad {
+    margin: 22px auto 0;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+  }
+  .tabla-verdad th, .tabla-verdad td {
+    border: 1px solid var(--linea);
+    padding: 6px 16px;
+  }
+  .tabla-verdad th {
+    color: var(--cobre-claro);
+    font-weight: 700;
+  }
+  .tabla-verdad tr.activa td {
+    background: rgba(110, 231, 154, 0.14);
+    color: var(--led-encendido);
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <span class="etiqueta">ELECTRÓNICA DIGITAL 1 · COMPUERTAS LÓGICAS</span>
+    <h2>Simulador — Compuerta AND</h2>
+
+    <div class="circuito">
+      <div class="entradas">
+        <div class="fila-entrada">
+          <span class="etiqueta-io">A</span>
+          <span class="valor" id="valor-a">0</span>
+        </div>
+        <div class="fila-entrada">
+          <span class="etiqueta-io">B</span>
+          <span class="valor" id="valor-b">0</span>
+        </div>
+      </div>
+
+      <svg width="220" height="140" viewBox="0 0 220 140">
+        <!-- trazas de entrada -->
+        <line id="traza-a" class="traza" x1="0" y1="40" x2="55" y2="40"/>
+        <line id="traza-b" class="traza" x1="0" y1="100" x2="55" y2="100"/>
+        <!-- cuerpo de la compuerta AND -->
+        <path class="compuerta-cuerpo" d="M55,20 L100,20 A50,50 0 0 1 100,120 L55,120 Z"/>
+        <!-- traza de salida -->
+        <line id="traza-out" class="traza" x1="150" y1="70" x2="185" y2="70"/>
+        <!-- LED indicador -->
+        <circle id="led" class="led" cx="196" cy="70" r="9"/>
+      </svg>
+
+      <span class="valor" id="valor-salida">0</span>
+    </div>
+
+    <div class="botones">
+      <button class="boton-toggle" onclick="alternar('a')">CAMBIAR A</button>
+      <button class="boton-toggle" onclick="alternar('b')">CAMBIAR B</button>
+    </div>
+
+    <table class="tabla-verdad">
+      <thead>
+        <tr><th>A</th><th>B</th><th>S</th></tr>
+      </thead>
+      <tbody id="cuerpo-tabla">
+        <tr data-a="0" data-b="0"><td>0</td><td>0</td><td>0</td></tr>
+        <tr data-a="0" data-b="1"><td>0</td><td>1</td><td>0</td></tr>
+        <tr data-a="1" data-b="0"><td>1</td><td>0</td><td>0</td></tr>
+        <tr data-a="1" data-b="1"><td>1</td><td>1</td><td>1</td></tr>
+      </tbody>
+    </table>
+
+    <p class="pie-nota">Salida = A AND B — la salida solo es 1 cuando ambas entradas son 1</p>
+  </div>
+
+<script>
+  let a = 0;
+  let b = 0;
+
+  function actualizar() {
+    const salida = (a === 1 && b === 1) ? 1 : 0;
+
+    document.getElementById('valor-a').textContent = a;
+    document.getElementById('valor-b').textContent = b;
+    document.getElementById('valor-salida').textContent = salida;
+
+    document.getElementById('traza-a').classList.toggle('activa', a === 1);
+    document.getElementById('traza-b').classList.toggle('activa', b === 1);
+    document.getElementById('traza-out').classList.toggle('activa', salida === 1);
+    document.getElementById('led').classList.toggle('activa', salida === 1);
+
+    document.querySelectorAll('#cuerpo-tabla tr').forEach(fila => {
+      const coincide = Number(fila.dataset.a) === a && Number(fila.dataset.b) === b;
+      fila.classList.toggle('activa', coincide);
+    });
+  }
+
+  function alternar(entrada) {
+    if (entrada === 'a') a = a === 0 ? 1 : 0;
+    if (entrada === 'b') b = b === 0 ? 1 : 0;
+    actualizar();
+  }
+
+  actualizar();
+</script>
+</body>
+</html>
