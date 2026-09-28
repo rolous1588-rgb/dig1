@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visualizador — Series de Fourier</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root {
+    --mascara: #0E3B2E;
+    --serigrafia: #F2EFE6;
+    --cobre: #C17A3D;
+    --cobre-claro: #E2A870;
+    --gris-pista: #8B9A94;
+    --linea: rgba(242, 239, 230, 0.16);
+    --led-encendido: #6EE79A;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+
+  body {
+    background: var(--mascara);
+    color: var(--serigrafia);
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 24px 16px;
+  }
+
+  .panel { max-width: 680px; margin: 0 auto; }
+
+  .etiqueta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--cobre-claro);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  h2 { margin: 0 0 6px; font-size: 1.2rem; text-align: center; }
+
+  .intro {
+    color: var(--gris-pista);
+    font-size: 0.86rem;
+    text-align: center;
+    margin: 0 auto 16px;
+    max-width: 54ch;
+  }
+
+  .selector { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; }
+
+  .boton-toggle {
+    background: transparent;
+    border: 1px solid var(--cobre);
+    color: var(--cobre-claro);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .boton-toggle:hover, .boton-toggle.activo { background: var(--cobre); color: var(--mascara); }
+
+  canvas {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--linea);
+  }
+  #lienzo { height: 240px; }
+  #espectro { height: 120px; margin-top: 10px; }
+
+  .leyenda {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--gris-pista);
+    margin: 8px 0 0;
+  }
+  .leyenda i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; }
+
+  .control { margin-top: 16px; }
+  .control label {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--gris-pista);
+    margin-bottom: 4px;
+  }
+  .control label b { color: var(--cobre-claro); }
+  input[type=range] { width: 100%; accent-color: var(--cobre); }
+
+  .formula {
+    margin-top: 16px;
+    border: 1px dashed var(--linea);
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--serigrafia);
+    overflow-x: auto;
+  }
+  .formula .nota { font-family: 'Inter', sans-serif; color: var(--gris-pista); display: block; margin-top: 6px; }
+  .formula b { color: var(--led-encendido); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <span class="etiqueta">TRANSFORMADAS Y FUNCIONES ESPECIALES · SERIES DE FOURIER</span>
+    <h2>Visualizador — Síntesis de Fourier</h2>
+    <p class="intro">Elige una señal periódica y aumenta el número de armónicos N. Observa cómo la suma parcial converge y cómo aparece el fenómeno de Gibbs en las discontinuidades.</p>
+
+    <div class="selector" id="selector">
+      <button class="boton-toggle activo" data-onda="cuadrada">CUADRADA</button>
+      <button class="boton-toggle" data-onda="triangular">TRIANGULAR</button>
+      <button class="boton-toggle" data-onda="sierra">DIENTE DE SIERRA</button>
+      <button class="boton-toggle" data-onda="rectificada">RECTIFICADA ONDA COMPLETA</button>
+    </div>
+
+    <canvas id="lienzo"></canvas>
+    <div class="leyenda">
+      <span><i style="background:#8B9A94"></i>señal f(t)</span>
+      <span><i style="background:#6EE79A"></i>suma parcial S<sub>N</sub>(t)</span>
+      <span><i style="background:#E2A870"></i>último armónico</span>
+    </div>
+
+    <canvas id="espectro"></canvas>
+    <div class="leyenda"><span>espectro de amplitudes |c<sub>n</sub>|, n = 1 … N</span></div>
+
+    <div class="control">
+      <label for="n">Número de armónicos N <b id="lbl-n"></b></label>
+      <input type="range" id="n" min="1" max="60" step="1" value="5">
+    </div>
+
+    <div class="formula" id="formula"></div>
+  </div>
+
+<script>
+  const COLORES = { senal: '#8B9A94', suma: '#6EE79A', armonico: '#E2A870', eje: 'rgba(242,239,230,0.25)', texto: '#8B9A94', barra: '#C17A3D' };
+
+  // Cada señal: periodo 2π, función exacta, coeficientes (término constante a0/2 y funciones an, bn)
+  const ONDAS = {
+    cuadrada: {
+      f: t => (t % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) < Math.PI ? 1 : -1,
+      a0: 0,
+      termino: (n, t) => n % 2 ? (4 / (Math.PI * n)) * Math.sin(n * t) : 0,
+      amp: n => n % 2 ? 4 / (Math.PI * n) : 0,
+      texto: 'f(t) = (4/π) Σ<sub>n impar</sub> sen(nt) / n',
+      nota: 'Coeficientes ∝ 1/n: la señal es discontinua, converge lento y el sobreimpulso de Gibbs (~9 %) no desaparece al aumentar N.'
+    },
+    triangular: {
+      f: t => { const x = ((t % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); return x < Math.PI ? 1 - 2 * x / Math.PI : -3 + 2 * x / Math.PI; },
+      a0: 0,
+      termino: (n, t) => n % 2 ? (8 / (Math.PI * Math.PI * n * n)) * Math.cos(n * t) : 0,
+      amp: n => n % 2 ? 8 / (Math.PI * Math.PI * n * n) : 0,
+      texto: 'f(t) = (8/π²) Σ<sub>n impar</sub> cos(nt) / n²',
+      nota: 'Coeficientes ∝ 1/n²: la señal es continua (derivada discontinua), converge rápido y sin Gibbs.'
+    },
+    sierra: {
+      f: t => { const x = ((t + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return x / Math.PI; },
+      a0: 0,
+      termino: (n, t) => (2 / (Math.PI * n)) * (n % 2 ? 1 : -1) * Math.sin(n * t),
+      amp: n => 2 / (Math.PI * n),
+      texto: 'f(t) = (2/π) Σ<sub>n≥1</sub> (−1)<sup>n+1</sup> sen(nt) / n',
+      nota: 'Función impar → solo términos seno. Contiene todos los armónicos (pares e impares).'
+    },
+    rectificada: {
+      f: t => Math.abs(Math.sin(t)),
+      a0: 2 / Math.PI,
+      termino: (n, t) => n % 2 ? 0 : (-4 / (Math.PI * (n * n - 1))) * Math.cos(n * t),
+      amp: n => n % 2 ? 0 : 4 / (Math.PI * (n * n - 1)),
+      texto: 'f(t) = 2/π − (4/π) Σ<sub>n par</sub> cos(nt) / (n² − 1)',
+      nota: 'Función par → solo cosenos. Valor medio 2/π ≈ 0.637 (componente DC). Solo armónicos pares del seno original.'
+    }
+  };
+
+  let actual = 'cuadrada';
+  const lienzo = document.getElementById('lienzo');
+  const espectro = document.getElementById('espectro');
+
+  function prepararCanvas(c) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = c.clientWidth, h = c.clientHeight;
+    c.width = w * dpr; c.height = h * dpr;
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+
+  function dibujarSenal(N) {
+    const { ctx, w, h } = prepararCanvas(lienzo);
+    const onda = ONDAS[actual];
+    const tMin = -2 * Math.PI, tMax = 2 * Math.PI;
+    const yMax = 1.4;
+    const X = t => (t - tMin) / (tMax - tMin) * w;
+    const Y = y => h / 2 - y / yMax * (h / 2 - 8);
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = COLORES.eje; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.moveTo(X(0), 0); ctx.lineTo(X(0), h); ctx.stroke();
+    ctx.fillStyle = COLORES.texto; ctx.font = '10px JetBrains Mono, monospace';
+    [[-2 * Math.PI, '−2π'], [-Math.PI, '−π'], [Math.PI, 'π'], [2 * Math.PI, '2π']].forEach(([t, s]) => ctx.fillText(s, X(t) - 8, Y(0) + 14));
+    ctx.fillText('1', X(0) + 4, Y(1) + 4); ctx.fillText('−1', X(0) + 4, Y(-1) + 4);
+
+    const trazar = (fn, color, grosor, sinSaltos) => {
+      ctx.strokeStyle = color; ctx.lineWidth = grosor; ctx.beginPath();
+      let prev = null;
+      for (let px = 0; px <= w; px++) {
+        const t = tMin + px / w * (tMax - tMin);
+        const y = fn(t);
+        if (prev === null || (sinSaltos && Math.abs(y - prev) > 0.5)) ctx.moveTo(px, Y(y)); else ctx.lineTo(px, Y(y));
+        prev = y;
+      }
+      ctx.stroke();
+    };
+
+    // último armónico no nulo
+    let ultimo = N;
+    while (ultimo > 1 && onda.amp(ultimo) === 0) ultimo--;
+    trazar(t => onda.termino(ultimo, t), COLORES.armonico, 1, false);
+    trazar(onda.f, COLORES.senal, 2, true);
+    trazar(t => { let s = onda.a0; for (let n = 1; n <= N; n++) s += onda.termino(n, t); return s; }, COLORES.suma, 2, false);
+  }
+
+  function dibujarEspectro(N) {
+    const { ctx, w, h } = prepararCanvas(espectro);
+    const onda = ONDAS[actual];
+    ctx.clearRect(0, 0, w, h);
+    const maxN = 60;
+    const ancho = w / (maxN + 1);
+    const ampMax = Math.max(onda.a0, ...Array.from({ length: maxN }, (_, i) => onda.amp(i + 1)));
+    ctx.strokeStyle = COLORES.eje; ctx.beginPath(); ctx.moveTo(0, h - 14); ctx.lineTo(w, h - 14); ctx.stroke();
+    for (let n = 0; n <= maxN; n++) {
+      const a = n === 0 ? onda.a0 : onda.amp(n);
+      if (a === 0) continue;
+      const alto = a / ampMax * (h - 24);
+      ctx.fillStyle = n <= N ? COLORES.barra : 'rgba(139,154,148,0.25)';
+      ctx.fillRect(n * ancho + ancho * 0.2, h - 14 - alto, ancho * 0.6, alto);
+    }
+    ctx.fillStyle = COLORES.texto; ctx.font = '10px JetBrains Mono, monospace';
+    [0, 10, 20, 30, 40, 50, 60].forEach(n => ctx.fillText(String(n), n * ancho, h - 2));
+  }
+
+  function errorRMS(N) {
+    const onda = ONDAS[actual];
+    const M = 2000; let s = 0;
+    for (let i = 0; i < M; i++) {
+      const t = (i + 0.5) / M * 2 * Math.PI;
+      let sN = onda.a0; for (let n = 1; n <= N; n++) sN += onda.termino(n, t);
+      s += (onda.f(t) - sN) ** 2;
+    }
+    return Math.sqrt(s / M);
+  }
+
+  function actualizar() {
+    const N = Number(document.getElementById('n').value);
+    document.getElementById('lbl-n').textContent = N;
+    dibujarSenal(N);
+    dibujarEspectro(N);
+    const onda = ONDAS[actual];
+    document.getElementById('formula').innerHTML =
+      `${onda.texto}<br>Error RMS con N = ${N}: <b>${errorRMS(N).toFixed(4)}</b><span class="nota">${onda.nota}</span>`;
+  }
+
+  document.getElementById('selector').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    actual = b.dataset.onda;
+    document.querySelectorAll('#selector button').forEach(x => x.classList.toggle('activo', x === b));
+    actualizar();
+  });
+  document.getElementById('n').addEventListener('input', actualizar);
+  window.addEventListener('resize', actualizar);
+  actualizar();
+</script>
+</body>
+</html>

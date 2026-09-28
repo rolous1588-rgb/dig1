@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador — Puente de Wheatstone</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root {
+    --mascara: #0E3B2E;
+    --serigrafia: #F2EFE6;
+    --cobre: #C17A3D;
+    --cobre-claro: #E2A870;
+    --gris-pista: #8B9A94;
+    --linea: rgba(242, 239, 230, 0.16);
+    --led-apagado: #2A4A40;
+    --led-encendido: #6EE79A;
+    --alerta: #F08A6C;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; }
+
+  body {
+    background: var(--mascara);
+    color: var(--serigrafia);
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 24px 16px;
+  }
+
+  .panel { max-width: 620px; margin: 0 auto; }
+
+  .etiqueta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--cobre-claro);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  h2 { margin: 0 0 6px; font-size: 1.2rem; text-align: center; }
+
+  .intro {
+    color: var(--gris-pista);
+    font-size: 0.86rem;
+    text-align: center;
+    margin: 0 auto 18px;
+    max-width: 52ch;
+  }
+
+  svg { display: block; width: 100%; height: auto; }
+
+  .traza { stroke: var(--gris-pista); stroke-width: 2; fill: none; }
+  .resistor { fill: var(--mascara); stroke: var(--serigrafia); stroke-width: 2; }
+  .resistor.oculta { stroke: var(--cobre-claro); stroke-dasharray: 4 3; }
+  .nodo { fill: var(--serigrafia); }
+  .texto-svg { fill: var(--serigrafia); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .texto-svg.tenue { fill: var(--gris-pista); }
+  .galva-cuerpo { fill: var(--mascara); stroke: var(--serigrafia); stroke-width: 2; }
+  .aguja { stroke: var(--alerta); stroke-width: 2.5; stroke-linecap: round; transition: transform 0.25s ease; }
+  .aguja.equilibrio { stroke: var(--led-encendido); }
+
+  .controles {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .control label {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--gris-pista);
+    margin-bottom: 4px;
+  }
+  .control label b { color: var(--cobre-claro); }
+
+  input[type=range] { width: 100%; accent-color: var(--cobre); }
+
+  .lecturas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .lectura {
+    border: 1px solid var(--linea);
+    padding: 10px 12px;
+  }
+  .lectura span {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gris-pista);
+  }
+  .lectura strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem;
+  }
+
+  .botones { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 18px; }
+
+  .boton-toggle {
+    background: transparent;
+    border: 1px solid var(--cobre);
+    color: var(--cobre-claro);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 10px 16px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+  .boton-toggle:hover { background: var(--cobre); color: var(--mascara); }
+
+  .resultado {
+    margin-top: 16px;
+    border: 1px dashed var(--linea);
+    padding: 12px 14px;
+    font-size: 0.86rem;
+    color: var(--gris-pista);
+    min-height: 1em;
+  }
+  .resultado b { color: var(--serigrafia); }
+  .ok { color: var(--led-encendido); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <span class="etiqueta">MEDIDAS ELÉCTRICAS · MÉTODOS DE CERO</span>
+    <h2>Simulador — Puente de Wheatstone</h2>
+    <p class="intro">Hay una resistencia desconocida R<sub>x</sub>. Ajusta la resistencia de década R<sub>3</sub> (y si quieres la razón R<sub>2</sub>/R<sub>1</sub>) hasta que el galvanómetro marque cero. En equilibrio: R<sub>x</sub> = R<sub>3</sub>·R<sub>2</sub>/R<sub>1</sub>.</p>
+
+    <svg viewBox="0 0 420 300" aria-label="Circuito del puente de Wheatstone">
+      <!-- fuente -->
+      <line class="traza" x1="210" y1="20" x2="210" y2="40"/>
+      <line class="traza" x1="30" y1="20" x2="210" y2="20"/>
+      <line class="traza" x1="30" y1="20" x2="30" y2="280"/>
+      <line class="traza" x1="30" y1="280" x2="210" y2="280"/>
+      <line class="traza" x1="210" y1="260" x2="210" y2="280"/>
+      <line stroke="#F2EFE6" stroke-width="2" x1="14" y1="140" x2="46" y2="140"/>
+      <line stroke="#F2EFE6" stroke-width="4" x1="22" y1="150" x2="38" y2="150"/>
+      <rect x="26" y="141" width="8" height="8" fill="#0E3B2E"/>
+      <text class="texto-svg" x="52" y="150" id="txt-vs">10 V</text>
+
+      <!-- rombo: arriba (210,40) izquierda (100,150) derecha (320,150) abajo (210,260) -->
+      <g id="rombo">
+        <line class="traza" x1="210" y1="40" x2="100" y2="150"/>
+        <line class="traza" x1="210" y1="40" x2="320" y2="150"/>
+        <line class="traza" x1="100" y1="150" x2="210" y2="260"/>
+        <line class="traza" x1="320" y1="150" x2="210" y2="260"/>
+      </g>
+      <!-- resistores (rectángulos rotados sobre cada rama) -->
+      <rect class="resistor" x="-22" y="-8" width="44" height="16" transform="translate(155,95) rotate(-45)"/>
+      <rect class="resistor" x="-22" y="-8" width="44" height="16" transform="translate(265,95) rotate(45)"/>
+      <rect class="resistor" x="-22" y="-8" width="44" height="16" transform="translate(155,205) rotate(45)"/>
+      <rect class="resistor oculta" x="-22" y="-8" width="44" height="16" transform="translate(265,205) rotate(-45)"/>
+      <text class="texto-svg" x="128" y="72" text-anchor="end">R1</text>
+      <text class="texto-svg tenue" x="128" y="86" text-anchor="end" id="txt-r1"></text>
+      <text class="texto-svg" x="292" y="72">R3</text>
+      <text class="texto-svg tenue" x="292" y="86" id="txt-r3"></text>
+      <text class="texto-svg" x="128" y="238" text-anchor="end">R2</text>
+      <text class="texto-svg tenue" x="128" y="252" text-anchor="end" id="txt-r2"></text>
+      <text class="texto-svg" x="292" y="238">Rx</text>
+      <text class="texto-svg tenue" x="292" y="252" id="txt-rx">?</text>
+
+      <!-- galvanómetro entre nodos A (100,150) y B (320,150) -->
+      <line class="traza" x1="100" y1="150" x2="182" y2="150"/>
+      <line class="traza" x1="238" y1="150" x2="320" y2="150"/>
+      <circle class="galva-cuerpo" cx="210" cy="150" r="28"/>
+      <path d="M190,160 A22,22 0 0 1 230,160" fill="none" stroke="#8B9A94" stroke-width="1"/>
+      <line x1="210" y1="134" x2="210" y2="138" stroke="#8B9A94" stroke-width="1"/>
+      <line id="aguja" class="aguja" x1="210" y1="164" x2="210" y2="134" style="transform-origin:210px 164px"/>
+      <text class="texto-svg" x="205" y="174" style="font-size:9px">G</text>
+
+      <circle class="nodo" cx="210" cy="40" r="3.5"/>
+      <circle class="nodo" cx="100" cy="150" r="3.5"/>
+      <circle class="nodo" cx="320" cy="150" r="3.5"/>
+      <circle class="nodo" cx="210" cy="260" r="3.5"/>
+      <text class="texto-svg tenue" x="84" y="140">A</text>
+      <text class="texto-svg tenue" x="328" y="140">B</text>
+    </svg>
+
+    <div class="controles">
+      <div class="control">
+        <label for="r3">R3 (década) <b id="lbl-r3"></b></label>
+        <input type="range" id="r3" min="0" max="9999" step="1" value="1000">
+      </div>
+      <div class="control">
+        <label for="r3fino">R3 ajuste fino <b id="lbl-r3fino"></b></label>
+        <input type="range" id="r3fino" min="0" max="0.99" step="0.01" value="0">
+      </div>
+      <div class="control">
+        <label for="razon">Razón R2/R1 <b id="lbl-razon"></b></label>
+        <input type="range" id="razon" min="0" max="6" step="1" value="3">
+      </div>
+      <div class="control">
+        <label for="vs">Tensión de la fuente Vs <b id="lbl-vs"></b></label>
+        <input type="range" id="vs" min="1" max="24" step="1" value="10">
+      </div>
+    </div>
+
+    <div class="lecturas">
+      <div class="lectura"><span>V_A (nodo A)</span><strong id="va"></strong></div>
+      <div class="lectura"><span>V_B (nodo B)</span><strong id="vb"></strong></div>
+      <div class="lectura"><span>V_G = V_A − V_B</span><strong id="vg"></strong></div>
+      <div class="lectura"><span>Rx estimada</span><strong id="rx-est"></strong></div>
+    </div>
+
+    <div class="botones">
+      <button class="boton-toggle" onclick="nuevaRx()">NUEVA Rx</button>
+      <button class="boton-toggle" onclick="revelar()">REVELAR Rx</button>
+    </div>
+    <div class="resultado" id="resultado">Consejo: empieza con la razón 1 y busca el cambio de signo de V<sub>G</sub>; luego cambia de razón para ganar resolución.</div>
+  </div>
+
+<script>
+  // Razones típicas de un puente comercial (brazos de relación)
+  const RAZONES = [0.001, 0.01, 0.1, 1, 10, 100, 1000];
+  const R1 = 1000;
+  let rx = 0;
+
+  const $ = id => document.getElementById(id);
+
+  function formatoOhm(r) {
+    if (r >= 1e6) return (r / 1e6).toPrecision(4) + ' MΩ';
+    if (r >= 1e3) return (r / 1e3).toPrecision(4) + ' kΩ';
+    return r.toPrecision(4) + ' Ω';
+  }
+
+  function formatoV(v) {
+    const a = Math.abs(v);
+    if (a < 1e-3) return (v * 1e6).toFixed(1) + ' µV';
+    if (a < 1) return (v * 1e3).toFixed(2) + ' mV';
+    return v.toFixed(3) + ' V';
+  }
+
+  function nuevaRx() {
+    // Rx aleatoria log-uniforme entre 1 Ω y 1 MΩ
+    rx = Math.pow(10, Math.random() * 6);
+    rx = Number(rx.toPrecision(4));
+    $('txt-rx').textContent = '?';
+    $('resultado').innerHTML = 'Nueva R<sub>x</sub> conectada. Busca el equilibrio.';
+    actualizar();
+  }
+
+  function revelar() {
+    const r3 = Number($('r3').value) + Number($('r3fino').value);
+    const razon = RAZONES[$('razon').value];
+    const est = r3 * razon;
+    const err = Math.abs(est - rx) / rx * 100;
+    $('txt-rx').textContent = formatoOhm(rx);
+    $('resultado').innerHTML =
+      `R<sub>x</sub> real = <b>${formatoOhm(rx)}</b> · estimada = <b>${formatoOhm(est)}</b> · error relativo = <b class="${err < 0.5 ? 'ok' : ''}">${err.toFixed(3)} %</b>`;
+  }
+
+  function actualizar() {
+    const r3 = Number($('r3').value) + Number($('r3fino').value);
+    const razon = RAZONES[$('razon').value];
+    const r2 = R1 * razon;
+    const vs = Number($('vs').value);
+
+    const va = vs * r2 / (R1 + r2);
+    const vb = vs * rx / (r3 + rx);
+    const vg = va - vb;
+
+    $('lbl-r3').textContent = Number($('r3').value) + ' Ω';
+    $('lbl-r3fino').textContent = '+' + Number($('r3fino').value).toFixed(2) + ' Ω';
+    $('lbl-razon').textContent = '× ' + razon;
+    $('lbl-vs').textContent = vs + ' V';
+    $('txt-vs').textContent = vs + ' V';
+    $('txt-r1').textContent = formatoOhm(R1);
+    $('txt-r2').textContent = formatoOhm(r2);
+    $('txt-r3').textContent = formatoOhm(Math.max(r3, 0.01));
+
+    $('va').textContent = formatoV(va);
+    $('vb').textContent = formatoV(vb);
+    $('vg').textContent = formatoV(vg);
+    $('rx-est').textContent = formatoOhm(Math.max(r3 * razon, 1e-3));
+
+    // Galvanómetro: escala logarítmica para ver desequilibrios pequeños
+    const signo = Math.sign(vg);
+    const mag = Math.min(1, Math.log10(1 + Math.abs(vg) / 1e-5) / 5);
+    const angulo = signo * mag * 60;
+    const aguja = $('aguja');
+    aguja.style.transform = `rotate(${angulo}deg)`;
+    aguja.classList.toggle('equilibrio', Math.abs(vg) < 1e-4 * vs);
+  }
+
+  ['r3', 'r3fino', 'razon', 'vs'].forEach(id => $(id).addEventListener('input', actualizar));
+  nuevaRx();
+</script>
+</body>
+</html>

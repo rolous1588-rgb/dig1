@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratorio — Búsqueda de raíces</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  :root {
+    --mascara: #0E3B2E;
+    --serigrafia: #F2EFE6;
+    --cobre: #C17A3D;
+    --cobre-claro: #E2A870;
+    --gris-pista: #8B9A94;
+    --linea: rgba(242, 239, 230, 0.16);
+    --led-encendido: #6EE79A;
+    --alerta: #F08A6C;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+
+  body {
+    background: var(--mascara);
+    color: var(--serigrafia);
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 24px 16px;
+  }
+
+  .panel { max-width: 720px; margin: 0 auto; }
+
+  .etiqueta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--cobre-claro);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+
+  h2 { margin: 0 0 6px; font-size: 1.2rem; text-align: center; }
+
+  .intro {
+    color: var(--gris-pista);
+    font-size: 0.86rem;
+    text-align: center;
+    margin: 0 auto 16px;
+    max-width: 56ch;
+  }
+
+  .formulario {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px 12px;
+  }
+  .campo.ancho { grid-column: 1 / -1; }
+  .campo label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--gris-pista);
+    margin-bottom: 4px;
+  }
+  .campo input, .campo select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--linea);
+    color: var(--serigrafia);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    padding: 8px 10px;
+  }
+  .campo select option { background: var(--mascara); }
+  .campo input:focus, .campo select:focus { outline: 1px solid var(--cobre); }
+  .oculto { display: none; }
+
+  .ejemplos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip {
+    background: transparent; border: 1px solid var(--linea); color: var(--gris-pista);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 4px 8px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--cobre); color: var(--cobre-claro); }
+
+  .botones { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 16px 0; }
+
+  .boton-toggle {
+    background: transparent;
+    border: 1px solid var(--cobre);
+    color: var(--cobre-claro);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 10px 16px;
+    cursor: pointer;
+  }
+  .boton-toggle:hover { background: var(--cobre); color: var(--mascara); }
+  .boton-toggle:disabled { opacity: 0.4; cursor: default; background: transparent; color: var(--cobre-claro); }
+
+  canvas { display: block; width: 100%; height: 260px; border: 1px solid var(--linea); }
+
+  .estado {
+    margin-top: 12px;
+    border: 1px dashed var(--linea);
+    padding: 10px 14px;
+    font-size: 0.86rem;
+    color: var(--gris-pista);
+  }
+  .estado b { color: var(--led-encendido); font-family: 'JetBrains Mono', monospace; }
+  .estado .error { color: var(--alerta); }
+
+  .tabla-envoltorio { overflow-x: auto; margin-top: 12px; max-height: 280px; overflow-y: auto; }
+  table {
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.74rem;
+    width: 100%;
+  }
+  th, td { border: 1px solid var(--linea); padding: 5px 8px; text-align: right; white-space: nowrap; }
+  th { color: var(--cobre-claro); position: sticky; top: 0; background: var(--mascara); }
+  tr.actual td { background: rgba(110, 231, 154, 0.14); color: var(--led-encendido); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <span class="etiqueta">MÉTODOS NUMÉRICOS · ECUACIONES NO LINEALES</span>
+    <h2>Laboratorio — Búsqueda de raíces</h2>
+    <p class="intro">Escribe f(x), elige el método y avanza iteración por iteración. Compara cuántos pasos necesita cada método para alcanzar la misma tolerancia.</p>
+
+    <div class="formulario">
+      <div class="campo ancho">
+        <label for="fx">f(x) — usa sin, cos, exp, log, sqrt, pow, ^, PI</label>
+        <input id="fx" value="x^3 - x - 2" spellcheck="false" autocomplete="off">
+        <div class="ejemplos" id="ejemplos">
+          <button class="chip" data-f="x^3 - x - 2" data-a="1" data-b="2">x³ − x − 2</button>
+          <button class="chip" data-f="cos(x) - x" data-a="0" data-b="1">cos x − x</button>
+          <button class="chip" data-f="exp(-x) - x" data-a="0" data-b="1">e⁻ˣ − x</button>
+          <button class="chip" data-f="x^2 - 2" data-a="0" data-b="2">x² − 2</button>
+          <button class="chip" data-f="x*log(x) - 1" data-a="1" data-b="2">x ln x − 1</button>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="metodo">Método</label>
+        <select id="metodo">
+          <option value="biseccion">Bisección</option>
+          <option value="falsa">Falsa posición</option>
+          <option value="newton">Newton-Raphson</option>
+          <option value="secante">Secante</option>
+          <option value="puntofijo">Punto fijo (x = x − f(x)·λ)</option>
+        </select>
+      </div>
+      <div class="campo" id="campo-a"><label for="a" id="lbl-a">a</label><input id="a" type="number" value="1" step="any"></div>
+      <div class="campo" id="campo-b"><label for="b" id="lbl-b">b</label><input id="b" type="number" value="2" step="any"></div>
+      <div class="campo oculto" id="campo-lambda"><label for="lambda">λ (relajación)</label><input id="lambda" type="number" value="0.1" step="any"></div>
+      <div class="campo"><label for="tol">Tolerancia εa (%)</label><input id="tol" type="number" value="0.0001" step="any"></div>
+      <div class="campo"><label for="maxit">Máx. iteraciones</label><input id="maxit" type="number" value="50" min="1" max="500"></div>
+    </div>
+
+    <div class="botones">
+      <button class="boton-toggle" id="btn-iniciar">REINICIAR</button>
+      <button class="boton-toggle" id="btn-paso">SIGUIENTE PASO</button>
+      <button class="boton-toggle" id="btn-todo">RESOLVER TODO</button>
+    </div>
+
+    <canvas id="lienzo"></canvas>
+    <div class="estado" id="estado"></div>
+
+    <div class="tabla-envoltorio">
+      <table>
+        <thead id="cabeza"></thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const COL = { eje: 'rgba(242,239,230,0.25)', curva: '#F2EFE6', punto: '#6EE79A', aux: '#E2A870', intervalo: 'rgba(193,122,61,0.18)', texto: '#8B9A94' };
+
+  // Compila una expresión a función de x. Solo se permiten identificadores matemáticos conocidos.
+  const PERMITIDOS = ['x', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'exp', 'log', 'log10', 'log2', 'sqrt', 'cbrt', 'abs', 'pow', 'PI', 'E'];
+  function compilar(expr) {
+    const limpia = expr.replace(/\^/g, '**').replace(/\bln\b/g, 'log').replace(/\bsen\b/g, 'sin').replace(/\bpi\b/g, 'PI');
+    const ids = limpia.match(/(?<![\w.])[A-Za-z_]\w*/g) || [];
+    const malo = ids.find(id => !PERMITIDOS.includes(id));
+    if (malo) throw new Error(`identificador no permitido: "${malo}"`);
+    if (/[^\w\s+\-*/().,]/.test(limpia)) throw new Error('carácter no válido en la expresión');
+    const cuerpo = `const {${PERMITIDOS.slice(1).join(',')}} = Math; return (${limpia});`;
+    const fn = new Function('x', cuerpo);
+    fn(1); // detecta errores de sintaxis en tiempo de uso
+    return fn;
+  }
+
+  const derivada = (f, x) => { const h = 1e-6 * Math.max(1, Math.abs(x)); return (f(x + h) - f(x - h)) / (2 * h); };
+
+  const COLUMNAS = {
+    biseccion: ['i', 'a', 'b', 'xr', 'f(xr)', 'εa %'],
+    falsa: ['i', 'a', 'b', 'xr', 'f(xr)', 'εa %'],
+    newton: ['i', 'xi', 'f(xi)', "f'(xi)", 'xi+1', 'εa %'],
+    secante: ['i', 'xi−1', 'xi', 'f(xi)', 'xi+1', 'εa %'],
+    puntofijo: ['i', 'xi', 'f(xi)', 'xi+1', 'εa %']
+  };
+
+  let S = null; // estado de la corrida
+
+  function leerEntradas() {
+    return {
+      f: compilar($('fx').value),
+      metodo: $('metodo').value,
+      a: Number($('a').value), b: Number($('b').value),
+      lambda: Number($('lambda').value),
+      tol: Number($('tol').value),
+      maxit: Math.max(1, Math.min(500, Number($('maxit').value) || 50))
+    };
+  }
+
+  function iniciar() {
+    try {
+      const e = leerEntradas();
+      S = { ...e, filas: [], iterados: [], terminado: false, xPrev: null };
+      if (e.metodo === 'biseccion' || e.metodo === 'falsa') {
+        const fa = e.f(e.a), fb = e.f(e.b);
+        if (!(e.a < e.b)) throw new Error('se requiere a < b');
+        if (fa * fb > 0) throw new Error(`f(a) y f(b) tienen el mismo signo (f(a) = ${fa.toPrecision(4)}, f(b) = ${fb.toPrecision(4)}): no hay cambio de signo en [a, b]`);
+        S.lo = e.a; S.hi = e.b;
+      } else if (e.metodo === 'secante') {
+        S.x0 = e.a; S.x1 = e.b; S.xPrev = e.b;
+      } else {
+        S.x = e.a; S.xPrev = e.a;
+      }
+      $('estado').innerHTML = 'Listo. Pulsa <b>SIGUIENTE PASO</b> para iterar.';
+    } catch (err) {
+      S = null;
+      $('estado').innerHTML = `<span class="error">Error: ${err.message}</span>`;
+    }
+    renderTabla(); dibujar(); botones();
+  }
+
+  function paso() {
+    if (!S || S.terminado) return;
+    const f = S.f, i = S.filas.length + 1;
+    let xNuevo, fila;
+    switch (S.metodo) {
+      case 'biseccion':
+      case 'falsa': {
+        const fa = f(S.lo), fb = f(S.hi);
+        xNuevo = S.metodo === 'biseccion' ? (S.lo + S.hi) / 2 : S.hi - fb * (S.lo - S.hi) / (fa - fb);
+        const fx = f(xNuevo);
+        fila = [i, S.lo, S.hi, xNuevo, fx];
+        S.ultimo = { tipo: 'intervalo', lo: S.lo, hi: S.hi, x: xNuevo };
+        if (fa * fx < 0) S.hi = xNuevo; else if (fa * fx > 0) S.lo = xNuevo; else { S.lo = S.hi = xNuevo; }
+        break;
+      }
+      case 'newton': {
+        const fx = f(S.x), d = derivada(f, S.x);
+        if (d === 0 || !isFinite(d)) return fin(`La derivada es cero en x = ${S.x.toPrecision(6)}: Newton no puede continuar.`, true);
+        xNuevo = S.x - fx / d;
+        fila = [i, S.x, fx, d, xNuevo];
+        S.ultimo = { tipo: 'tangente', x0: S.x, y0: fx, x: xNuevo };
+        S.x = xNuevo;
+        break;
+      }
+      case 'secante': {
+        const f0 = f(S.x0), f1 = f(S.x1);
+        if (f1 === f0) return fin('f(xi) = f(xi−1): la secante es horizontal.', true);
+        xNuevo = S.x1 - f1 * (S.x0 - S.x1) / (f0 - f1);
+        fila = [i, S.x0, S.x1, f1, xNuevo];
+        S.ultimo = { tipo: 'secante', xa: S.x0, ya: f0, xb: S.x1, yb: f1, x: xNuevo };
+        S.x0 = S.x1; S.x1 = xNuevo;
+        break;
+      }
+      case 'puntofijo': {
+        const fx = f(S.x);
+        xNuevo = S.x - S.lambda * fx;
+        fila = [i, S.x, fx, xNuevo];
+        S.ultimo = { tipo: 'punto', x0: S.x, x: xNuevo };
+        S.x = xNuevo;
+        break;
+      }
+    }
+    // En bisección y falsa posición la primera iteración no tiene aproximación previa
+    const ea = S.xPrev === null ? null : Math.abs((xNuevo - S.xPrev) / xNuevo) * 100;
+    fila.push(ea);
+    S.filas.push(fila);
+    S.iterados.push(xNuevo);
+    S.xPrev = xNuevo;
+
+    if (!isFinite(xNuevo)) return fin('El método divergió (valor no finito).', true);
+    if (ea !== null && ea < S.tol) return fin(`Convergió: raíz ≈ <b>${xNuevo.toPrecision(10)}</b> en ${i} iteraciones (εa = ${ea.toExponential(2)} %).`);
+    if (f(xNuevo) === 0) return fin(`Raíz exacta encontrada: <b>${xNuevo.toPrecision(10)}</b> en ${i} iteraciones.`);
+    if (i >= S.maxit) return fin(`Se alcanzó el máximo de ${S.maxit} iteraciones. Último valor: <b>${xNuevo.toPrecision(10)}</b>.`, true);
+
+    $('estado').innerHTML = `Iteración ${i}: x ≈ <b>${xNuevo.toPrecision(10)}</b>${ea !== null ? ` · εa = ${ea.toExponential(2)} %` : ''}`;
+    renderTabla(); dibujar(); botones();
+  }
+
+  function fin(msg, esError) {
+    S.terminado = true;
+    $('estado').innerHTML = esError ? `<span class="error">${msg}</span>` : msg;
+    renderTabla(); dibujar(); botones();
+  }
+
+  function resolverTodo() { while (S && !S.terminado) paso(); }
+
+  function fmt(v) {
+    if (v === null || v === undefined) return '—';
+    if (Number.isInteger(v) && Math.abs(v) < 1e6) return String(v);
+    return Math.abs(v) < 1e-4 && v !== 0 ? v.toExponential(4) : v.toPrecision(8);
+  }
+
+  function renderTabla() {
+    const metodo = $('metodo').value;
+    $('cabeza').innerHTML = '<tr>' + COLUMNAS[metodo].map(c => `<th>${c}</th>`).join('') + '</tr>';
+    const filas = S ? S.filas : [];
+    $('cuerpo').innerHTML = filas.map((f, k) =>
+      `<tr class="${k === filas.length - 1 ? 'actual' : ''}">${f.map(fmt).map(t => `<td>${t}</td>`).join('')}</tr>`).join('');
+    const env = document.querySelector('.tabla-envoltorio');
+    env.scrollTop = env.scrollHeight;
+  }
+
+  function botones() {
+    const activo = S && !S.terminado;
+    $('btn-paso').disabled = !activo;
+    $('btn-todo').disabled = !activo;
+  }
+
+  function dibujar() {
+    const c = $('lienzo');
+    const dpr = window.devicePixelRatio || 1;
+    const w = c.clientWidth, h = c.clientHeight;
+    c.width = w * dpr; c.height = h * dpr;
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    let f;
+    try { f = S ? S.f : compilar($('fx').value); } catch { return; }
+
+    // ventana en x: alrededor de los valores iniciales y de los iterados
+    const xs = [Number($('a').value), Number($('b').value)];
+    if (S) S.iterados.forEach(x => xs.push(x));
+    const finitos = xs.filter(isFinite);
+    let xmin = Math.min(...finitos), xmax = Math.max(...finitos);
+    const m = Math.max(0.5, (xmax - xmin) * 0.25);
+    xmin -= m; xmax += m;
+
+    const muestras = [];
+    for (let px = 0; px <= w; px++) { const x = xmin + px / w * (xmax - xmin); muestras.push([x, f(x)]); }
+    const ys = muestras.map(p => p[1]).filter(isFinite).sort((p, q) => p - q);
+    let ymin = ys[Math.floor(ys.length * 0.02)] ?? -1, ymax = ys[Math.floor(ys.length * 0.98)] ?? 1;
+    ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
+    const my = (ymax - ymin) * 0.12 || 1; ymin -= my; ymax += my;
+
+    const X = x => (x - xmin) / (xmax - xmin) * w;
+    const Y = y => h - (y - ymin) / (ymax - ymin) * h;
+
+    // intervalo actual
+    if (S && (S.metodo === 'biseccion' || S.metodo === 'falsa')) {
+      ctx.fillStyle = COL.intervalo;
+      ctx.fillRect(X(S.lo), 0, X(S.hi) - X(S.lo), h);
+    }
+
+    ctx.strokeStyle = COL.eje; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0));
+    if (xmin < 0 && xmax > 0) { ctx.moveTo(X(0), 0); ctx.lineTo(X(0), h); }
+    ctx.stroke();
+    ctx.fillStyle = COL.texto; ctx.font = '10px JetBrains Mono, monospace';
+    ctx.fillText(xmin.toPrecision(3), 4, Math.min(h - 4, Y(0) + 14));
+    ctx.fillText(xmax.toPrecision(3), w - 40, Math.min(h - 4, Y(0) + 14));
+
+    ctx.strokeStyle = COL.curva; ctx.lineWidth = 2; ctx.beginPath();
+    let pen = false;
+    muestras.forEach(([x, y]) => {
+      if (!isFinite(y)) { pen = false; return; }
+      if (!pen) { ctx.moveTo(X(x), Y(y)); pen = true; } else ctx.lineTo(X(x), Y(y));
+    });
+    ctx.stroke();
+
+    if (!S) return;
+    // iterados anteriores
+    S.iterados.forEach((x, k) => {
+      if (!isFinite(x)) return;
+      ctx.fillStyle = k === S.iterados.length - 1 ? COL.punto : 'rgba(110,231,154,0.35)';
+      ctx.beginPath(); ctx.arc(X(x), Y(0), k === S.iterados.length - 1 ? 5 : 3, 0, 2 * Math.PI); ctx.fill();
+    });
+
+    // construcción geométrica del último paso
+    const u = S.ultimo;
+    if (!u) return;
+    ctx.strokeStyle = COL.aux; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]); ctx.beginPath();
+    if (u.tipo === 'tangente') {
+      ctx.moveTo(X(u.x0), Y(0)); ctx.lineTo(X(u.x0), Y(u.y0)); ctx.lineTo(X(u.x), Y(0));
+    } else if (u.tipo === 'secante') {
+      ctx.moveTo(X(u.xa), Y(u.ya)); ctx.lineTo(X(u.xb), Y(u.yb)); ctx.lineTo(X(u.x), Y(0));
+    } else if (u.tipo === 'intervalo') {
+      if (S.metodo === 'falsa') { ctx.moveTo(X(u.lo), Y(f(u.lo))); ctx.lineTo(X(u.hi), Y(f(u.hi))); }
+      ctx.moveTo(X(u.x), Y(0)); ctx.lineTo(X(u.x), Y(f(u.x)));
+    } else if (u.tipo === 'punto') {
+      ctx.moveTo(X(u.x0), Y(0)); ctx.lineTo(X(u.x0), Y(f(u.x0))); ctx.moveTo(X(u.x0), Y(0)); ctx.lineTo(X(u.x), Y(0));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  function ajustarCampos() {
+    const m = $('metodo').value;
+    const intervalo = m === 'biseccion' || m === 'falsa';
+    $('lbl-a').textContent = intervalo ? 'a (extremo izquierdo)' : m === 'secante' ? 'x₋₁ (primer valor)' : 'x₀ (valor inicial)';
+    $('lbl-b').textContent = m === 'secante' ? 'x₀ (segundo valor)' : 'b (extremo derecho)';
+    $('campo-b').classList.toggle('oculto', m === 'newton' || m === 'puntofijo');
+    $('campo-lambda').classList.toggle('oculto', m !== 'puntofijo');
+  }
+
+  $('metodo').addEventListener('change', () => { ajustarCampos(); iniciar(); });
+  ['fx', 'a', 'b', 'lambda', 'tol', 'maxit'].forEach(id => $(id).addEventListener('change', iniciar));
+  $('btn-iniciar').addEventListener('click', iniciar);
+  $('btn-paso').addEventListener('click', paso);
+  $('btn-todo').addEventListener('click', resolverTodo);
+  $('ejemplos').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    $('fx').value = b.dataset.f; $('a').value = b.dataset.a; $('b').value = b.dataset.b;
+    iniciar();
+  });
+  window.addEventListener('resize', dibujar);
+
+  ajustarCampos();
+  iniciar();
+</script>
+</body>
+</html>
