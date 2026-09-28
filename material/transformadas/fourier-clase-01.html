@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fourier · Clase 01: el inversor que zumba</title>
+<!--
+  Transformadas y Funciones Especiales · Series de Fourier · Clase 01 (90 min)
+  Modo TV: lienzo fijo 848 × 390, un solo archivo, sin internet.
+  Hilo de la clase: un inversor de onda cuadrada hace zumbar un ventilador.
+  Cada ejercicio: Situación real → Explorar (interactivo, "Sus pruebas") → Conclusión.
+
+  Estructura del código:
+    1. MOTOR   — lienzo, escala, pantalla completa, galería, índice, cabeceras, registro de pruebas.
+    2. PIEZAS  — funciones de dibujo reutilizables (osciloscopio, trazas, barras).
+    3. CONTENIDO — un bloque por ejercicio (caso, E1…E5, cierre).
+-->
+<style>
+:root{
+  --bg:#F5F6F8; --dot:#DCE1E7; --panel:#FFFFFF; --panel-2:#FAFBFC;
+  --ink:#0E1621; --ink-2:#3A4655; --muted:#6B7684; --line:#D8DDE3; --line-2:#E8EBEF;
+  --accent:#0B57D0; --accent-soft:#E8EFFB; --ok:#0F7B55; --warn:#B3261E;
+  --sum:#0E1621; --target:#98A2AE;
+  /* armónicos: paleta Okabe-Ito (sobria y distinguible con daltonismo) */
+  --h1:#0072B2; --h3:#D55E00; --h5:#009E73; --h7:#CC79A7; --h9:#E69F00; --h11:#56B4E9;
+  --mono:"Roboto Mono",ui-monospace,"Droid Sans Mono","DejaVu Sans Mono",monospace;
+  --sans:Roboto,"Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; background:#0A0D12; overflow:hidden}
+body{font-family:var(--sans); color:var(--ink); -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none}
+[hidden]{display:none!important}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation; margin:0}
+button:focus-visible, input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+/* ================= MOTOR ================= */
+#stage{position:absolute; left:50%; top:50%; width:848px; height:390px; margin:-195px 0 0 -424px; transform:scale(var(--s,1)); overflow:hidden;
+  background-color:var(--bg); background-image:radial-gradient(var(--dot) 1px, transparent 1.2px); background-size:16px 16px}
+.view{position:absolute; inset:0; overflow:hidden; overflow:clip; touch-action:none}
+.track{display:flex; height:100%; will-change:transform; transition:transform .32s cubic-bezier(.2,.7,.2,1)}
+.track.drag{transition:none}
+.slide{flex:0 0 848px; height:100%; overflow:hidden; position:relative; display:flex; flex-direction:column}
+
+/* Cabecera (solo la lee el profesor). Todo a la izquierda: la esquina superior derecha queda libre. */
+.hd{flex:0 0 38px; display:flex; align-items:center; gap:14px; padding:0 28px 0 8px; border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--panel) 70%, transparent)}
+.hd .menu{height:38px; width:40px; border:0; background:transparent; font-size:18px; color:var(--muted)}
+.hd .ex{font-family:var(--mono); font-size:13px; color:var(--muted); letter-spacing:.04em; white-space:nowrap}
+.hd .ex b{color:var(--ink); font-weight:500}
+.steps{display:flex; align-items:center; gap:12px; font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:#A1AAB5}
+.steps span{display:flex; align-items:center; height:38px; border-bottom:2px solid transparent}
+.steps span.on{color:var(--ink); border-bottom-color:var(--accent)}
+.steps i{width:12px; height:1px; background:var(--line)}
+.body{flex:1 1 0; min-height:0; position:relative}
+
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:4px}
+.cap{margin:0; font-size:14px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+
+/* Índice */
+#index{position:absolute; inset:0; z-index:30; background:color-mix(in srgb, var(--bg) 96%, transparent); display:flex; flex-direction:column; padding:18px 28px; gap:6px}
+#index .cap{margin-bottom:6px}
+#index button{display:flex; align-items:center; gap:16px; height:40px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); text-align:left; font-size:18px}
+#index button b{font-family:var(--mono); font-weight:500; color:var(--muted); width:52px}
+#index button.cur{border-color:var(--accent); box-shadow:inset 3px 0 0 var(--accent)}
+
+/* Situación */
+.sit{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:24px; padding:14px 28px 14px}
+.sit .txt{display:flex; flex-direction:column; gap:12px; justify-content:center; min-width:0}
+.sit h2{margin:0; font-size:32px; line-height:1.12; font-weight:600; letter-spacing:-.01em}
+.sit p{margin:0; font-size:28px; line-height:1.25}
+.sit .kick{font-size:28px; color:var(--accent); font-weight:500}
+.sit .fig{margin-top:44px; display:flex; flex-direction:column; min-height:0; overflow:hidden}
+.fig .ro{flex:0 0 40px}
+.fig svg{display:block; width:100%; flex:1 1 0; min-height:0}
+
+/* Explorar */
+.xp{display:grid; grid-template-columns:minmax(0,1fr) var(--strip,222px); grid-template-rows:minmax(0,1fr)}
+.xp-main{display:flex; flex-direction:column; gap:8px; padding:10px 14px 10px 28px; min-height:0; min-width:0}
+.scope{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+.ro{flex:0 0 44px; display:flex; align-items:center; gap:12px; padding:0 14px; border-bottom:1px solid var(--line); background:var(--panel-2); min-width:0}
+.ro .val{font-size:30px; font-weight:500; white-space:nowrap}
+.ro .lbl28{font-size:28px; font-weight:500; white-space:nowrap}
+.ro .bar{flex:1 1 auto; min-width:40px; height:4px; background:var(--line-2); position:relative}
+.ro .bar i{position:absolute; left:0; top:0; bottom:0; background:var(--accent)}
+.ro .bar u{position:absolute; top:-6px; bottom:-6px; width:2px; background:var(--ink-2)}
+.ro .leg{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); white-space:nowrap}
+.ro .leg s{display:inline-block; width:18px; height:0; border-top:3px solid var(--sum); vertical-align:middle; margin-right:4px; text-decoration:none}
+.ro .leg s.t{border-top:2px dashed var(--target)}
+.scope svg{display:block; width:100%; flex:1 1 0; min-height:0}
+.strip{border-left:1px solid var(--line); background:var(--panel); padding:14px 14px 8px; display:flex; flex-direction:column; min-height:0}
+.tbl-h{display:flex; justify-content:space-between; gap:8px; margin:22px 0 0; padding-bottom:6px; border-bottom:1px solid var(--ink-2); font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.tbl-h span{flex:1 1 0; text-align:right} .tbl-h span:first-child{text-align:left; flex:0 0 auto; min-width:30px}
+.log{list-style:none; margin:0; padding:0; flex:1 1 auto; min-height:0; overflow:hidden}
+.log li{display:flex; align-items:center; justify-content:space-between; gap:8px; height:40px; border-bottom:1px solid var(--line-2); font-family:var(--mono); font-size:28px; font-weight:500; font-variant-numeric:tabular-nums}
+.log li > span{flex:1 1 0; text-align:right; white-space:nowrap} .log li > span:first-child{text-align:left; flex:0 0 auto; min-width:30px}
+.log li.new{animation:flash .7s ease-out}
+@keyframes flash{from{background:var(--accent-soft)}}
+.log li.goal{box-shadow:inset 3px 0 0 var(--ok)}
+.empty{margin:10px 0 0; font-size:16px; line-height:1.35; color:var(--muted)}
+.lnk{align-self:flex-start; border:0; background:transparent; padding:4px 0; font-size:14px; font-weight:500; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+.sq{display:flex; gap:3px; flex:0 0 auto}
+.sq i{width:12px; height:12px; border:1px solid #BAC2CC; background:var(--panel)}
+.sq i.on{border-color:var(--k); background:var(--k)}
+
+/* Controles */
+.chs{display:flex; gap:6px; flex:0 0 56px}
+.ch{flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:4px; background:var(--panel);
+  font-family:var(--mono); font-size:28px; font-weight:500; color:#A1AAB5; position:relative}
+.ch::before{content:''; position:absolute; left:7px; top:50%; width:4px; height:26px; margin-top:-13px; border-radius:1px; background:var(--line)}
+.ch.on{color:var(--ink); border-color:var(--ink-2)}
+.ch.on::before{background:var(--k)}
+.unit{font-size:13px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin:0 0 -4px}
+.stepper{display:flex; align-items:center; gap:10px; flex:0 0 56px}
+.stepper button{width:64px; height:56px; border:1px solid var(--ink-2); border-radius:4px; background:var(--panel); font-size:32px; line-height:1}
+.stepper button:disabled{opacity:.3; cursor:default}
+.stepper .sv{min-width:170px; text-align:center; font-size:28px; font-weight:500}
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:48px; background:transparent; margin:0; touch-action:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px; background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:40px; height:40px; margin-top:-18px; border-radius:50%; background:var(--panel); border:3px solid var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.18)}
+input[type=range]::-moz-range-track{height:4px; background:var(--line)}
+input[type=range]::-moz-range-thumb{width:34px; height:34px; border-radius:50%; background:var(--panel); border:3px solid var(--accent)}
+.axis{position:relative; flex:0 0 32px; border-top:1px solid var(--line-2)}
+.axis span{position:absolute; top:0; transform:translateX(-50%); font-family:var(--mono); font-size:28px; line-height:32px; color:var(--ink-2)}
+.axis span.u{right:12px; transform:none; font-size:14px; color:var(--muted); letter-spacing:.06em}
+.slrow{display:flex; align-items:center; gap:14px; flex:0 0 52px}
+.slrow .cap{white-space:nowrap}
+
+/* Conclusión */
+.con{display:flex; flex-direction:column; gap:10px; padding:12px 28px 12px}
+.con > .cap{padding-bottom:6px; border-bottom:1px solid var(--ink-2)}
+.mrow{display:flex; align-items:center; gap:14px; height:42px; border-bottom:1px solid var(--line-2); font-size:28px; font-weight:500; white-space:nowrap}
+.mrow .num{margin-left:auto}
+.mrow .tag{font-family:var(--mono); font-size:14px; color:var(--muted); width:22px}
+.none{margin:6px 0 0; font-size:28px; color:var(--muted)}
+.concl{margin-top:auto; min-height:124px; display:flex; flex-direction:column; justify-content:center; padding:12px 18px; border-left:3px solid var(--accent)}
+.b-concl{align-self:flex-start; height:52px; padding:0 22px; border-radius:4px; border:1px solid var(--ink); background:var(--ink); color:#fff; font-size:18px; font-weight:500}
+.concl .cap{margin:0 0 6px; color:var(--accent)}
+.concl .t{margin:0; font-size:28px; line-height:1.25; font-weight:500}
+
+/* Cierre */
+.close{display:flex; flex-direction:column; gap:6px; padding:16px 28px}
+.close ol{margin:4px 0 0; padding:0; list-style:none; counter-reset:c}
+.close li{counter-increment:c; display:flex; gap:16px; align-items:baseline; min-height:50px; padding:6px 0; border-bottom:1px solid var(--line-2); font-size:28px; font-weight:500}
+.close li::before{content:counter(c,decimal-leading-zero); font-family:var(--mono); font-size:16px; color:var(--accent)}
+.close .next{margin-top:auto; font-size:16px; color:var(--muted)}
+
+/* SVG */
+svg text{font-family:var(--sans); fill:var(--ink)}
+.g-min{stroke:#EEF1F4; stroke-width:1}
+.g-maj{stroke:#E0E5EA; stroke-width:1}
+.g-ax{stroke:#B7C0CA; stroke-width:1}
+.w-target{fill:none; stroke:var(--target); stroke-width:2; stroke-dasharray:7 6}
+.w-sum{fill:none; stroke:var(--sum); stroke-width:3.5; stroke-linejoin:round}
+.w-h{fill:none; stroke-width:2; opacity:.75}
+.w-sine{fill:none; stroke:var(--target); stroke-width:3}
+.w-base{stroke:var(--line); stroke-width:1}
+.bar-in{fill:none; stroke:var(--target); stroke-width:1.5; stroke-dasharray:4 3}
+.bar-out{fill:var(--accent)}
+.hcurve{fill:none; stroke:var(--warn); stroke-width:2.5}
+.sch{fill:none; stroke:var(--ink); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round}
+.sch-box{fill:var(--panel); stroke:var(--ink); stroke-width:2}
+.sch-t{font-size:28px; font-weight:500}
+.mark{fill:none; stroke:var(--warn); stroke-width:2.5}
+.fan-blades{transform-origin:0 0; animation:spin 1.1s linear infinite}
+.fan.shake{animation:shake .09s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shake{0%{transform:translate(0,0)}25%{transform:translate(1.5px,-1px)}50%{transform:translate(-1.5px,1px)}75%{transform:translate(1px,1.5px)}}
+
+/* Inicio y ayudas */
+.start{position:absolute; inset:0; z-index:40; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:24px 56px;
+  background-color:var(--bg); background-image:radial-gradient(var(--dot) 1px, transparent 1.2px); background-size:16px 16px}
+.start .mod{font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:.06em}
+.start h1{margin:0; font-size:36px; line-height:1.15; font-weight:600; letter-spacing:-.01em; max-width:700px}
+.start p{margin:0; font-size:20px; color:var(--ink-2); max-width:640px}
+.go{align-self:flex-start; height:56px; padding:0 28px; border-radius:4px; border:0; background:var(--accent); color:#fff; font-size:20px; font-weight:500}
+.fsback{position:absolute; left:12px; bottom:12px; z-index:35; height:40px; padding:0 14px; border-radius:4px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:500; opacity:.9}
+#rotate{position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; text-align:center; padding:32px; background:#0A0D12; color:#fff; font:500 24px/1.3 var(--sans)}
+@media (orientation:portrait){ #rotate{display:flex} }
+@media (prefers-reduced-motion:reduce){ .track{transition:none} .fan-blades,.fan.shake{animation:none} .log li.new{animation:none} }
+</style>
+</head>
+<body>
+<div id="rotate">Gira el celular en horizontal.</div>
+
+<div id="stage">
+  <div class="view" id="view">
+    <div class="track" id="track">
+
+      <!-- ============ CASO ============ -->
+      <section class="slide" data-ex="0" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>El inversor que hace zumbar al ventilador</h2>
+            <p>Se corta la luz. Un inversor barato convierte los 12&nbsp;V de una batería en 230&nbsp;V. El ventilador gira, pero zumba y se calienta.</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="cap">Forma</span><span class="lbl28" id="caso-src">Seno</span></div>
+            <svg id="caso-svg" viewBox="0 0 338 170" preserveAspectRatio="none"></svg>
+            <div class="chs" style="padding:6px; flex-basis:62px">
+              <button type="button" class="ch on" id="caso-red" style="--k:var(--target); font-family:var(--sans); font-size:28px">Red</button>
+              <button type="button" class="ch" id="caso-inv" style="--k:var(--sum); font-family:var(--sans); font-size:28px">Inversor</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ E1 · ARMA LA CUADRADA ============ -->
+      <section class="slide" data-ex="1" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Fourier, 1807</h2>
+            <p>Joseph Fourier afirmó que toda onda periódica se puede armar sumando senos.</p>
+            <p class="kick">Lo comprobamos con la onda del inversor: 50&nbsp;Hz.</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="cap">Sumando</span><span class="lbl28 num" id="e1s-n">1 onda</span></div>
+            <svg id="e1s-svg" viewBox="0 0 338 200" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="1" data-ph="e">
+        <div class="body xp">
+          <div class="xp-main">
+            <div class="panel scope">
+              <div class="ro">
+                <span class="cap">Parecido</span><span class="val num" id="e1-val">0%</span>
+                <span class="bar"><i id="e1-bar"></i><u style="left:93%"></u></span>
+                <span class="leg"><span><s></s>suma</span><span><s class="t"></s>inversor</span></span>
+              </div>
+              <svg id="e1-svg" viewBox="0 0 560 200" preserveAspectRatio="none"></svg>
+            </div>
+            <p class="unit">Frecuencia (Hz) · meta: 93&nbsp;% con la menor cantidad de ondas</p>
+            <div class="chs" id="e1-chs"></div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>Ondas</span><span>Parecido</span></div>
+            <ol class="log" id="e1-log"></ol>
+            <p class="empty" id="e1-empty">Cada combinación que prueben se anota aquí.</p>
+            <button type="button" class="lnk" id="e1-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="1" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e1-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">La onda del inversor es una suma de senos: 50&nbsp;Hz marca el ritmo; 150, 250, 350&nbsp;Hz… afilan las esquinas.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E2 · LA ALTURA JUSTA ============ -->
+      <section class="slide" data-ex="2" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>¿Cuánta onda de 150&nbsp;Hz hay?</h2>
+            <p>Un técnico sabe que la salida del inversor lleva escondida una onda de 150&nbsp;Hz, pero no sabe qué tan fuerte es.</p>
+            <p class="kick">Buscaremos su altura justa.</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="cap">Escondida</span><span class="lbl28 num" style="color:var(--h3)">150 Hz</span></div>
+            <svg id="e2s-svg" viewBox="0 0 338 200" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="2" data-ph="e">
+        <div class="body xp">
+          <div class="xp-main">
+            <div class="panel scope">
+              <div class="ro">
+                <span class="cap">Parecido</span><span class="val num" id="e2-val">0%</span>
+                <span class="bar"><i id="e2-bar"></i></span>
+                <span class="leg"><span><s></s>50 + 150 Hz</span><span><s class="t"></s>inversor</span></span>
+              </div>
+              <svg id="e2-svg" viewBox="0 0 560 200" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="slrow">
+              <span class="cap">Altura de 150&nbsp;Hz</span>
+              <input type="range" id="e2-r" min="0" max="0.8" step="0.01" value="0.6" aria-label="Altura de la onda de 150 Hz">
+              <span class="val num" id="e2-rv" style="font-size:30px; font-weight:500; min-width:80px; text-align:right">0,60</span>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>Altura</span><span>Parecido</span></div>
+            <ol class="log" id="e2-log"></ol>
+            <p class="empty" id="e2-empty">Muevan la altura y suelten: cada prueba se anota aquí.</p>
+            <button type="button" class="lnk" id="e2-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="2" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e2-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">Cada onda tiene una altura justa: 1/3 para 150&nbsp;Hz, 1/5 para 250&nbsp;Hz… Esa altura es su coeficiente de Fourier.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E3 · DUELO ============ -->
+      <section class="slide" data-ex="3" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Dos inversores</h2>
+            <p>El barato entrega una onda con saltos. Uno más caro entrega una onda sin saltos.</p>
+            <p class="kick">Comparamos cuántos senos necesita cada uno.</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="lbl28">A · barato</span></div>
+            <svg id="e3s-a" viewBox="0 0 338 90" preserveAspectRatio="none"></svg>
+            <div class="ro" style="border-top:1px solid var(--line)"><span class="lbl28">B · caro</span></div>
+            <svg id="e3s-b" viewBox="0 0 338 90" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="3" data-ph="e">
+        <div class="body xp" style="--strip:236px">
+          <div class="xp-main">
+            <div style="display:flex; gap:8px; flex:1 1 auto; min-height:0">
+              <div class="panel scope" style="flex:1 1 0; min-width:0">
+                <div class="ro"><span class="lbl28">A</span><span class="val num" id="e3-va"></span></div>
+                <svg id="e3-a" viewBox="0 0 280 200" preserveAspectRatio="none"></svg>
+              </div>
+              <div class="panel scope" style="flex:1 1 0; min-width:0">
+                <div class="ro"><span class="lbl28">B</span><span class="val num" id="e3-vb"></span></div>
+                <svg id="e3-b" viewBox="0 0 280 200" preserveAspectRatio="none"></svg>
+              </div>
+            </div>
+            <div class="stepper">
+              <button type="button" id="e3-m" aria-label="Menos ondas">−</button>
+              <span class="sv num" id="e3-n"></span>
+              <button type="button" id="e3-p" aria-label="Más ondas">+</button>
+              <span class="cap" style="margin-left:auto">Parecido de cada una</span>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>N</span><span>A %</span><span>B %</span></div>
+            <ol class="log" id="e3-log"></ol>
+            <p class="empty" id="e3-empty">Cada cantidad de ondas que prueben se anota aquí.</p>
+            <button type="button" class="lnk" id="e3-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="3" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e3-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">Los saltos cuestan senos. Con saltos, las alturas bajan lento (1/n); sin saltos, bajan rápido (1/n²).</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E4 · EL PICO TERCO ============ -->
+      <section class="slide" data-ex="4" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Un pico que no existe</h2>
+            <p>Un osciloscopio mide la onda del inversor, pero solo capta los primeros senos. En cada salto aparece un pico.</p>
+            <p class="kick">Si capta más senos, ¿el pico se va?</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="cap">Osciloscopio</span><span class="lbl28 num">7 ondas</span></div>
+            <svg id="e4s-svg" viewBox="0 0 338 200" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="4" data-ph="e">
+        <div class="body xp">
+          <div class="xp-main">
+            <div style="display:flex; gap:8px; flex:1 1 auto; min-height:0">
+              <div class="panel scope" style="flex:1.25 1 0; min-width:0">
+                <div class="ro"><span class="cap">Pico</span><span class="val num" id="e4-pk"></span></div>
+                <svg id="e4-svg" viewBox="0 0 300 200" preserveAspectRatio="none"></svg>
+              </div>
+              <div class="panel scope" style="flex:1 1 0; min-width:0">
+                <div class="ro"><span class="cap">Ancho</span><span class="val num" id="e4-w"></span></div>
+                <svg id="e4-zoom" viewBox="0 0 240 200" preserveAspectRatio="none"></svg>
+              </div>
+            </div>
+            <div class="stepper">
+              <button type="button" id="e4-m" aria-label="Menos ondas">−</button>
+              <span class="sv num" id="e4-n"></span>
+              <button type="button" id="e4-p" aria-label="Más ondas">+</button>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>Ondas</span><span>Pico</span></div>
+            <ol class="log" id="e4-log"></ol>
+            <p class="empty" id="e4-empty">Cada cantidad de ondas que prueben se anota aquí.</p>
+            <button type="button" class="lnk" id="e4-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="4" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e4-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">Con más senos el pico se hace más angosto, pero no más bajo: siempre sobra cerca del 9&nbsp;% del salto. Es el fenómeno de Gibbs.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E5 · EL FILTRO ============ -->
+      <section class="slide" data-ex="5" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Solución: un filtro</h2>
+            <p>Entre el inversor y el ventilador se pone un filtro LC. Deja pasar lo lento y frena lo rápido.</p>
+            <p class="kick">Hay que elegir su frecuencia de corte.</p>
+          </div>
+          <div class="panel fig" style="padding:0">
+            <svg id="e5s-svg" viewBox="0 0 338 250" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="5" data-ph="e">
+        <div class="body xp" style="--strip:222px">
+          <div class="xp-main" style="gap:6px">
+            <div class="panel scope" style="flex:1.1 1 0">
+              <div class="ro">
+                <span class="cap">THD</span><span class="val num" id="e5-thd"></span>
+                <span class="cap" style="margin-left:14px">50&nbsp;Hz pasa</span><span class="val num" id="e5-v1"></span>
+              </div>
+              <svg id="e5-svg" viewBox="0 0 560 120" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="panel" style="flex:0.9 1 0; min-height:0; display:flex; flex-direction:column">
+              <svg id="e5-spec" viewBox="0 0 560 100" preserveAspectRatio="none" style="display:block; width:100%; flex:1 1 0; min-height:0"></svg>
+              <div class="axis" id="e5-axis"></div>
+            </div>
+            <div class="slrow" style="flex-basis:48px">
+              <span class="cap">Corte</span>
+              <input type="range" id="e5-fc" min="0" max="1000" step="1" value="1000" aria-label="Frecuencia de corte del filtro">
+              <span class="val num" id="e5-fcv" style="font-size:30px; font-weight:500; min-width:128px; text-align:right"></span>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>Corte</span><span>THD</span></div>
+            <ol class="log" id="e5-log"></ol>
+            <p class="empty" id="e5-empty">Muevan el corte y suelten: cada prueba se anota aquí.</p>
+            <button type="button" class="lnk" id="e5-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="5" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e5-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">El filtro deja pasar 50&nbsp;Hz y frena los armónicos. Así funcionan los inversores «de onda senoidal pura».</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ CIERRE ============ -->
+      <section class="slide" data-ex="6" data-ph="s">
+        <div class="body close">
+          <p class="cap">Lo que aprendimos hoy</p>
+          <ol>
+            <li>Toda onda periódica es una suma de senos.</li>
+            <li>Cada seno tiene su altura justa: el coeficiente.</li>
+            <li>Los saltos necesitan muchos senos, y dejan un pico.</li>
+            <li>Filtrar armónicos es limpiar la señal.</li>
+          </ol>
+          <p class="next">Próxima clase: cómo calcular los coeficientes sin probar a ciegas.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="index" hidden></div>
+  <button type="button" class="fsback" id="fsback" hidden>⛶ Volver a pantalla completa</button>
+
+  <div class="start" id="start">
+    <span class="mod">TRANSFORMADAS · SERIES DE FOURIER · CLASE 01 · 90 MIN</span>
+    <h1>El inversor que hace zumbar al ventilador</h1>
+    <p>Un caso real y cinco ejercicios. Pasen de pantalla deslizando el dedo; el botón ☰ de arriba abre el índice.</p>
+    <button type="button" class="go" id="b-start">Empezar</button>
+    <p style="font-size:14px; color:var(--muted)">Al empezar se activa la pantalla completa.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function S(tag, a, p) { const e = document.createElementNS(NS, tag); if (a) for (const k in a) { if (k === 'text') e.textContent = a[k]; else e.setAttribute(k, a[k]); } if (p) p.appendChild(e); return e; }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PI = Math.PI;
+// Formatos: coma decimal y redondeo HACIA ABAJO en porcentajes (nunca muestra 100 % si no lo es)
+const pct0 = x => Math.floor(x * 100 + 1e-9) + '%';
+const pct1 = x => (Math.floor(x * 1000 + 1e-9) / 10).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const dec = (x, d) => x.toLocaleString('es', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ======================================================================
+   1. MOTOR
+   ====================================================================== */
+const stage = $('#stage'), view = $('#view'), track = $('#track');
+const SLIDES = $$('.slide');
+const N = SLIDES.length, W = 848;
+let idx = 0, scale = 1, started = false;
+const onEnter = {};   // funciones que se ejecutan al llegar a una pantalla (por índice)
+
+function fit() {
+  scale = Math.min(window.innerWidth / 848, window.innerHeight / 390);
+  stage.style.setProperty('--s', scale);
+  $('#fsback').hidden = !started || !!document.fullscreenElement || !document.fullscreenEnabled;
+}
+window.addEventListener('resize', fit);
+document.addEventListener('fullscreenchange', () => setTimeout(fit, 100));
+async function enterFS() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
+  try { await screen.orientation.lock('landscape'); } catch (e) {}
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
+  fit();
+}
+document.addEventListener('visibilitychange', () => { if (started && document.visibilityState === 'visible') { try { navigator.wakeLock && navigator.wakeLock.request('screen'); } catch (e) {} } });
+$('#fsback').addEventListener('click', enterFS);
+$('#b-start').addEventListener('click', () => { started = true; $('#start').hidden = true; enterFS(); });
+fit();
+
+function go(i) {
+  idx = Math.max(0, Math.min(N - 1, i));
+  track.style.transform = `translateX(${-idx * W}px)`;
+  view.scrollLeft = 0;
+  const f = onEnter[idx]; if (f) f();
+}
+let drag = null;
+view.addEventListener('pointerdown', e => {
+  if (e.target.closest('button, input')) return;
+  drag = { x: e.clientX, y: e.clientY, id: e.pointerId, dx: 0, t: performance.now(), lock: null };
+});
+view.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x) / scale, dy = (e.clientY - drag.y) / scale;
+  if (drag.lock === null && Math.hypot(dx, dy) > 10) {
+    drag.lock = Math.abs(dx) > Math.abs(dy);
+    if (drag.lock) { track.classList.add('drag'); try { view.setPointerCapture(e.pointerId); } catch (_) {} }
+  }
+  if (drag.lock) {
+    drag.dx = dx;
+    const edge = (idx === 0 && dx > 0) || (idx === N - 1 && dx < 0);
+    track.style.transform = `translateX(${-idx * W + (edge ? dx * 0.3 : dx)}px)`;
+  }
+});
+function endDrag() {
+  if (!drag) return;
+  track.classList.remove('drag');
+  if (drag.lock) {
+    const v = drag.dx / Math.max(1, performance.now() - drag.t);
+    if (drag.dx < -80 || v < -0.6) go(idx + 1);
+    else if (drag.dx > 80 || v > 0.6) go(idx - 1);
+    else go(idx);
+  }
+  drag = null;
+}
+view.addEventListener('pointerup', endDrag);
+view.addEventListener('pointercancel', endDrag);
+view.addEventListener('scroll', () => { if (view.scrollLeft) view.scrollLeft = 0; });
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input')) return;
+  if (e.key === 'ArrowRight') go(idx + 1);
+  if (e.key === 'ArrowLeft') go(idx - 1);
+});
+
+// Cabeceras e índice (generados a partir de data-ex / data-ph)
+const EX = ['Caso', 'E1 · Arma la onda', 'E2 · La altura justa', 'E3 · Dos inversores', 'E4 · El pico terco', 'E5 · El filtro', 'Cierre'];
+const PH = { s: 'Situación', e: 'Explorar', c: 'Conclusión' };
+SLIDES.forEach(sl => {
+  const ex = +sl.dataset.ex, ph = sl.dataset.ph;
+  const hd = document.createElement('header'); hd.className = 'hd';
+  const lab = EX[ex].split(' · ');
+  hd.innerHTML = `<button type="button" class="menu" aria-label="Índice">☰</button><span class="ex">${lab.length > 1 ? `<b>${lab[0]}</b> ${lab[1]}` : `<b>${lab[0]}</b>`}</span>` +
+    (ex >= 1 && ex <= 5 ? `<nav class="steps">${['s', 'e', 'c'].map(k => `<span class="${k === ph ? 'on' : ''}">${PH[k]}</span>`).join('<i></i>')}</nav>` : '');
+  sl.prepend(hd);
+});
+function openIndex() {
+  const box = $('#index');
+  const cur = +SLIDES[idx].dataset.ex;
+  box.innerHTML = '<p class="cap">Índice de la clase</p>' + EX.map((t, i) => {
+    const first = SLIDES.findIndex(s => +s.dataset.ex === i);
+    const [a, b] = t.split(' · ');
+    return `<button type="button" data-go="${first}" class="${i === cur ? 'cur' : ''}"><b>${b ? a : '—'}</b>${b || a}</button>`;
+  }).join('');
+  box.hidden = false;
+}
+stage.addEventListener('click', e => {
+  if (e.target.closest('.hd .menu')) { openIndex(); return; }
+  const g = e.target.closest('#index [data-go]');
+  if (g) { $('#index').hidden = true; go(+g.dataset.go); return; }
+  if (e.target.closest('#index')) { $('#index').hidden = true; return; }
+  const b = e.target.closest('.b-concl');
+  if (b) { b.hidden = true; b.nextElementSibling.hidden = false; return; }
+  const c = e.target.closest('.concl > div');
+  if (c) { c.hidden = true; c.previousElementSibling.hidden = false; }
+});
+const slideIndex = el => SLIDES.indexOf(el.closest('.slide'));
+
+// Registro de pruebas ("Sus pruebas"): sin duplicados, máx. 6, ordenado
+function Log(id, { key, sort, row, goal }) {
+  // seed(): anota el estado inicial la primera vez que la clase cambia algo
+  let items = [], fresh = null;
+  const ol = $(`#${id}-log`), empty = $(`#${id}-empty`), reset = $(`#${id}-reset`);
+  function render() {
+    ol.innerHTML = '';
+    [...items].sort(sort).forEach(it => {
+      const li = document.createElement('li');
+      li.className = (it === fresh ? 'new ' : '') + (goal && goal(it) ? 'goal' : '');
+      li.innerHTML = row(it);
+      ol.appendChild(li);
+    });
+    empty.hidden = items.length > 0; reset.hidden = items.length === 0;
+  }
+  reset.addEventListener('click', () => { items = []; fresh = null; render(); });
+  render();
+  return {
+    add(it) { items = items.filter(x => key(x) !== key(it)); items.push(it); if (items.length > 6) items.splice(1, 1); fresh = it; render(); },
+    seed(it) { if (!items.length) { items.push(it); } },
+    get items() { return items; }
+  };
+}
+
+/* ======================================================================
+   2. PIEZAS DE DIBUJO
+   ====================================================================== */
+const H = [1, 3, 5, 7, 9, 11];
+const col = n => css('--h' + n) || css('--h11');
+const bSq = n => 4 / (n * PI);                                  // coeficientes de la cuadrada (impares)
+const bTri = n => 8 / (PI * PI * n * n) * (((n - 1) / 2) % 2 ? -1 : 1); // triangular (impares)
+const sq = t => (((t % (2 * PI)) + 2 * PI) % (2 * PI)) < PI ? 1 : -1;
+const tri = t => (2 / PI) * Math.asin(Math.sin(t));
+const partial = (b, ns) => t => ns.reduce((s, n) => s + b(n) * Math.sin(n * t), 0);
+const odd = K => Array.from({ length: K }, (_, k) => 2 * k + 1);
+
+function path(fn, x0, x1, y0, yS, t0, t1, steps = 400) {
+  let d = '';
+  for (let i = 0; i <= steps; i++) {
+    const t = t0 + (t1 - t0) * i / steps;
+    d += (i ? 'L' : 'M') + (x0 + (x1 - x0) * i / steps).toFixed(1) + ',' + (y0 - fn(t) * yS).toFixed(1);
+  }
+  return d;
+}
+// Retícula tipo osciloscopio: 10 × 8 divisiones con subdivisiones
+function grid(svg, Wd, Hd, y0) {
+  const dx = Wd / 10, dy = Hd / 8;
+  for (let i = 1; i < 50; i++) if (i % 5) S('line', { x1: i * dx / 5, x2: i * dx / 5, y1: 0, y2: Hd, class: 'g-min' }, svg);
+  for (let i = 1; i < 10; i++) S('line', { x1: i * dx, x2: i * dx, y1: 0, y2: Hd, class: 'g-maj' }, svg);
+  for (let j = 1; j < 8; j++) S('line', { x1: 0, x2: Wd, y1: j * dy, y2: j * dy, class: 'g-maj' }, svg);
+  S('line', { x1: 0, x2: Wd, y1: y0, y2: y0, class: 'g-ax' }, svg);
+}
+function vb(svg) { const [, , w, h] = svg.getAttribute('viewBox').split(' ').map(Number); return [w, h]; }
+// Dibuja trazas sobre una pantalla: [{fn, cls, stroke, steps}]
+function scope(svg, traces, { A, t0 = -0.2, t1 = 4 * PI + 0.2, gridOn = true } = {}) {
+  svg.replaceChildren();
+  const [Wd, Hd] = vb(svg), y0 = Hd / 2, amp = A ?? Hd * 0.34;
+  if (gridOn) grid(svg, Wd, Hd, y0);
+  traces.forEach(tr => S('path', { d: path(tr.fn, 0, Wd, y0, amp, tr.t0 ?? t0, tr.t1 ?? t1, tr.steps || 500), class: tr.cls, stroke: tr.stroke || null }, svg));
+  return { Wd, Hd, y0, amp };
+}
+const squares = (on, list = H) => `<span class="sq">${list.map(n => `<i class="${on.includes(n) ? 'on' : ''}" style="--k:${col(n)}"></i>`).join('')}</span>`;
+const noData = '<p class="none">Aún no hay pruebas: vuelvan a Explorar.</p>';
+
+/* ======================================================================
+   3. CONTENIDO
+   ====================================================================== */
+
+/* ---------- Caso: red eléctrica frente a inversor ---------- */
+(function caso() {
+  const svg = $('#caso-svg');
+  let src = 'red';
+  function draw() {
+    svg.replaceChildren();
+    const Wd = 338, Hd = 170, y0 = 85;
+    grid(svg, Wd, Hd, y0);
+    const inv = src === 'inv';
+    S('path', { d: path(inv ? sq : Math.sin, 0, 250, y0, 52, 0, 4 * PI, 600), class: inv ? 'w-sum' : 'w-sine', style: inv ? '' : 'stroke:var(--h1)' }, svg);
+    // ventilador
+    const g = S('g', { transform: 'translate(296,85)' }, svg);
+    const fan = S('g', { class: 'fan' + (inv ? ' shake' : '') }, g);
+    S('circle', { r: 34, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 2 }, fan);
+    const bl = S('g', { class: 'fan-blades' }, fan);
+    for (let k = 0; k < 3; k++) S('path', { d: 'M0,0 C6,-10 6,-26 0,-30 C-6,-26 -6,-10 0,0', fill: 'var(--ink-2)', transform: `rotate(${k * 120})` }, bl);
+    S('circle', { r: 4, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 2 }, fan);
+    if (inv) [[-44, -30], [44, -30], [-44, 30], [44, 30]].forEach(([x, y]) =>
+      S('path', { d: `M${x * 0.8},${y * 0.8} l${Math.sign(x) * 5},${Math.sign(y) * 5} m${Math.sign(x) * 2},${-Math.sign(y) * 5} l${Math.sign(x) * 4},${Math.sign(y) * 3}`, class: 'mark' }, g));
+    $('#caso-src').textContent = inv ? 'Cuadrada' : 'Seno';
+    $('#caso-red').classList.toggle('on', !inv); $('#caso-inv').classList.toggle('on', inv);
+  }
+  $('#caso-red').addEventListener('click', () => { src = 'red'; draw(); });
+  $('#caso-inv').addEventListener('click', () => { src = 'inv'; draw(); });
+  draw();
+})();
+
+/* ---------- E1 · situación: animación de síntesis ---------- */
+(function e1s() {
+  const svg = $('#e1s-svg'); let K = 1, timer = null;
+  const me = slideIndex(svg);
+  function frame() {
+    scope(svg, [
+      { fn: sq, cls: 'w-target', steps: 800 },
+      { fn: partial(bSq, odd(K)), cls: 'w-sum', steps: 600 }
+    ], { A: 62 });
+    $('#e1s-n').textContent = K === 1 ? '1 onda' : `${K} ondas`;
+    K = K >= 8 ? 1 : K + 1;
+  }
+  frame();
+  onEnter[me] = () => { clearInterval(timer); K = 1; frame(); timer = setInterval(() => { if (idx !== me) { clearInterval(timer); return; } frame(); }, 900); };
+})();
+
+/* ---------- E1 · explorar: canales ---------- */
+const E1 = (function e1() {
+  const on = new Set([1]);
+  const svg = $('#e1-svg');
+  const par = set => [...set].reduce((s, n) => s + bSq(n) ** 2 / 2, 0);   // energía capturada (cuadrada: energía total 1)
+  const log = Log('e1', {
+    key: it => it.on.join('-'),
+    sort: (a, b) => b.p - a.p || a.on.length - b.on.length,
+    row: it => `${squares(it.on)}<span>${pct0(it.p)}</span>`,
+    goal: it => it.p >= 0.93
+  });
+  function draw(record) {
+    const ns = [...on].sort((a, b) => a - b);
+    const p = par(ns);
+    scope(svg, [
+      ...ns.map(n => ({ fn: t => bSq(n) * Math.sin(n * t), cls: 'w-h', stroke: col(n), steps: 500 })),
+      { fn: sq, cls: 'w-target', steps: 1000 },
+      { fn: partial(bSq, ns), cls: 'w-sum', steps: 700 }
+    ], { A: 66 });
+    $('#e1-val').textContent = pct0(p);
+    $('#e1-bar').style.width = (p * 100).toFixed(1) + '%';
+    $$('#e1-chs .ch').forEach(b => b.classList.toggle('on', on.has(+b.dataset.n)));
+    if (record && ns.length) log.add({ on: ns, p });
+  }
+  const box = $('#e1-chs');
+  H.forEach(n => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ch'; b.dataset.n = n; b.style.setProperty('--k', col(n));
+    b.textContent = 50 * n;
+    b.addEventListener('click', () => { const ns = [...on].sort((a, b) => a - b); if (ns.length) log.seed({ on: ns, p: par(ns) }); on.has(n) ? on.delete(n) : on.add(n); draw(true); });
+    box.appendChild(b);
+  });
+  draw(false);
+  return { log, par };
+})();
+
+/* ---------- E1 · conclusión ---------- */
+onEnter[slideIndex($('#e1-meas'))] = () => {
+  const it = E1.log.items, el = $('#e1-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const rows = [];
+  const goal = it.filter(x => x.p >= 0.93).sort((a, b) => a.on.length - b.on.length)[0];
+  if (goal) rows.push([goal.on, `Meta con ${goal.on.length} ondas`, goal.p]);
+  const solo = it.find(x => x.on.length === 1 && x.on[0] === 1);
+  if (solo) rows.push([solo.on, 'Solo 50 Hz', solo.p]);
+  const sin1 = it.filter(x => !x.on.includes(1)).sort((a, b) => b.p - a.p)[0];
+  if (sin1) rows.push([sin1.on, 'Sin 50 Hz', sin1.p]);
+  if (!rows.length) { const b = [...it].sort((a, b) => b.p - a.p)[0]; rows.push([b.on, 'Mejor prueba', b.p]); }
+  el.innerHTML = rows.slice(0, 3).map(([on, t, p]) => `<div class="mrow">${squares(on)}<span>${t}</span><span class="num">${pct0(p)}</span></div>`).join('');
+};
+
+/* ---------- E2 · situación ---------- */
+(function e2s() {
+  const svg = $('#e2s-svg');
+  const r = scope(svg, [
+    { fn: sq, cls: 'w-target', steps: 800 },
+    { fn: t => bSq(3) * Math.sin(3 * t), cls: 'w-h', stroke: col(3), steps: 500 }
+  ], { A: 62 });
+  // marca de altura "?" sobre la onda de 150 Hz
+  const x = 338 * (PI / 6 + 0.2) / (4 * PI + 0.4), yTop = r.y0 - bSq(3) * 62;
+  S('line', { x1: x + 14, x2: x + 14, y1: yTop, y2: r.y0, stroke: col(3), 'stroke-width': 2.5 }, svg);
+  S('line', { x1: x + 8, x2: x + 20, y1: yTop, y2: yTop, stroke: col(3), 'stroke-width': 2.5 }, svg);
+  const lbl = S('text', { x: x + 24, y: yTop + 4, 'font-size': 28, 'font-weight': 600, fill: col(3), text: '?' }, svg);
+  lbl.style.fill = col(3);
+})();
+
+/* ---------- E2 · explorar: altura del armónico de 150 Hz ---------- */
+const E2 = (function e2() {
+  const svg = $('#e2-svg'), rng = $('#e2-r');
+  const b1 = bSq(1), b3 = bSq(3);
+  // parecido = 1 − (error cuadrático medio) / (energía de la cuadrada = 1)
+  const par = r => Math.max(0, b1 * b1 / 2 + b3 * b3 / 2 - (r * b1 - b3) ** 2 / 2);
+  const log = Log('e2', {
+    key: it => it.r.toFixed(2),
+    sort: (a, b) => a.r - b.r,
+    row: it => `<span>${dec(it.r, 2)}</span><span>${pct0(it.p)}</span>`,
+    goal: it => Math.abs(it.r - 1 / 3) < 0.015
+  });
+  function draw() {
+    const r = +rng.value, a3 = r * b1, p = par(r);
+    scope(svg, [
+      { fn: t => a3 * Math.sin(3 * t), cls: 'w-h', stroke: col(3), steps: 500 },
+      { fn: sq, cls: 'w-target', steps: 1000 },
+      { fn: t => b1 * Math.sin(t) + a3 * Math.sin(3 * t), cls: 'w-sum', steps: 700 }
+    ], { A: 60 });
+    $('#e2-val').textContent = pct0(p);
+    $('#e2-bar').style.width = (p * 100).toFixed(1) + '%';
+    $('#e2-rv').textContent = dec(r, 2);
+    return { r, p };
+  }
+  rng.addEventListener('input', draw);
+  rng.addEventListener('change', () => { const d = draw(); log.add({ r: Math.round(d.r * 100) / 100, p: d.p }); });
+  draw();
+  return { log };
+})();
+onEnter[slideIndex($('#e2-meas'))] = () => {
+  const it = E2.log.items, el = $('#e2-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const best = [...it].sort((a, b) => b.p - a.p)[0];
+  const lo = [...it].sort((a, b) => a.r - b.r)[0], hi = [...it].sort((a, b) => b.r - a.r)[0];
+  const rows = [[`Su mejor altura: ${dec(best.r, 2)}`, best.p]];
+  if (lo !== best) rows.push([`Más baja: ${dec(lo.r, 2)}`, lo.p]);
+  if (hi !== best && hi !== lo) rows.push([`Más alta: ${dec(hi.r, 2)}`, hi.p]);
+  el.innerHTML = rows.map(([t, p]) => `<div class="mrow"><span>${t}</span><span class="num">${pct0(p)}</span></div>`).join('');
+};
+
+/* ---------- E3 · situación ---------- */
+scope($('#e3s-a'), [{ fn: sq, cls: 'w-sum', steps: 600 }], { A: 30 });
+scope($('#e3s-b'), [{ fn: tri, cls: 'w-sum', steps: 600 }], { A: 30 });
+
+/* ---------- E3 · explorar: duelo con la misma cantidad de ondas ---------- */
+const E3 = (function e3() {
+  let K = 1; const KMAX = 8;
+  const parA = K => odd(K).reduce((s, n) => s + bSq(n) ** 2 / 2, 0);
+  const parB = K => odd(K).reduce((s, n) => s + bTri(n) ** 2 / 2, 0) / (1 / 3);
+  const log = Log('e3', {
+    key: it => it.K, sort: (a, b) => a.K - b.K,
+    row: it => `<span>${it.K}</span><span>${pct1(it.a)}</span><span>${pct1(it.b)}</span>`
+  });
+  function draw(record) {
+    const ns = odd(K);
+    scope($('#e3-a'), [{ fn: sq, cls: 'w-target', steps: 800 }, { fn: partial(bSq, ns), cls: 'w-sum', steps: 600 }], { A: 62 });
+    scope($('#e3-b'), [{ fn: tri, cls: 'w-target', steps: 800 }, { fn: partial(bTri, ns), cls: 'w-sum', steps: 600 }], { A: 62 });
+    const a = parA(K), b = parB(K);
+    $('#e3-va').textContent = pct1(a) + '%'; $('#e3-vb').textContent = pct1(b) + '%';
+    $('#e3-n').textContent = K === 1 ? '1 onda' : `${K} ondas`;
+    $('#e3-m').disabled = K <= 1; $('#e3-p').disabled = K >= KMAX;
+    if (record) log.add({ K, a, b });
+  }
+  const seed = () => log.seed({ K, a: parA(K), b: parB(K) });
+  $('#e3-m').addEventListener('click', () => { seed(); K = Math.max(1, K - 1); draw(true); });
+  $('#e3-p').addEventListener('click', () => { seed(); K = Math.min(KMAX, K + 1); draw(true); });
+  draw(false);
+  return { log };
+})();
+onEnter[slideIndex($('#e3-meas'))] = () => {
+  const it = [...E3.log.items].sort((a, b) => a.K - b.K), el = $('#e3-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const pick = [it[0], it[it.length - 1]].filter((x, i, a) => a.indexOf(x) === i);
+  el.innerHTML = `<div class="mrow" style="height:34px; font-size:16px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase"><span style="width:180px">Ondas</span><span style="margin-left:auto; width:150px; text-align:right">A · saltos</span><span style="width:170px; text-align:right">B · sin saltos</span></div>` +
+    pick.map(x => `<div class="mrow"><span style="width:180px">${x.K === 1 ? '1 onda' : x.K + ' ondas'}</span><span class="num" style="width:150px; text-align:right">${pct1(x.a)}%</span><span class="num" style="width:170px; text-align:right; margin-left:0">${pct1(x.b)}%</span></div>`).join('');
+};
+
+/* ---------- E4 · situación ---------- */
+(function e4s() {
+  const svg = $('#e4s-svg');
+  const r = scope(svg, [{ fn: sq, cls: 'w-target', steps: 800 }, { fn: partial(bSq, odd(7)), cls: 'w-sum', steps: 800 }], { A: 62 });
+  // círculo en el primer pico
+  const tPk = PI / 14, x = 338 * (tPk + 0.2) / (4 * PI + 0.4), y = r.y0 - 1.18 * 62;
+  S('circle', { cx: x, cy: y, r: 13, class: 'mark' }, svg);
+})();
+
+/* ---------- E4 · explorar: pico de Gibbs ---------- */
+const E4 = (function e4() {
+  const STEPS = [1, 2, 3, 5, 10, 20, 50, 100, 300, 1000];
+  let i = 0;
+  const peak = K => partial(bSq, odd(K))(PI / (2 * K));   // el primer máximo de la suma parcial está en t = π/(2K)
+  const cache = {};
+  const log = Log('e4', {
+    key: it => it.K, sort: (a, b) => a.K - b.K,
+    row: it => `<span>${it.K}</span><span>${dec(it.pk, 2)}</span>`
+  });
+  function draw(record) {
+    const K = STEPS[i], f = partial(bSq, odd(K));
+    const pk = cache[K] ?? (cache[K] = peak(K));
+    // pantalla principal: un periodo, con el pico marcado
+    scope($('#e4-svg'), [{ fn: sq, cls: 'w-target', steps: 800 }, { fn: f, cls: 'w-sum', steps: K > 100 ? 2400 : 900 }], { A: 60, t0: -0.3, t1: 2 * PI - 0.3 });
+    // lupa: siempre muestra los primeros 3 lóbulos después del salto (ventana ∝ 1/K)
+    const zs = $('#e4-zoom'); zs.replaceChildren();
+    const [Wz, Hz] = vb(zs), win = 3 * PI / K, z0 = -0.25 * win, z1 = win;
+    const yOf = v => Hz - 16 - (v + 0.1) / 1.45 * (Hz - 30);
+    grid(zs, Wz, Hz, yOf(0));
+    S('line', { x1: 0, x2: Wz, y1: yOf(1), y2: yOf(1), class: 'w-target' }, zs);
+    S('line', { x1: 0, x2: Wz, y1: yOf(pk), y2: yOf(pk), stroke: 'var(--warn)', 'stroke-width': 1.5, 'stroke-dasharray': '3 4' }, zs);
+    let d = '';
+    for (let j = 0; j <= 400; j++) { const t = z0 + (z1 - z0) * j / 400; d += (j ? 'L' : 'M') + (Wz * j / 400).toFixed(1) + ',' + yOf(f(t)).toFixed(1); }
+    S('path', { d, class: 'w-sum' }, zs);
+    $('#e4-pk').textContent = dec(pk, 2);
+    const ms = 10 / K; // ancho del primer lóbulo: π/K rad = 10/K ms a 50 Hz
+    $('#e4-w').textContent = ms >= 1 ? dec(ms, 1) + ' ms' : dec(ms, ms >= 0.1 ? 2 : 3) + ' ms';
+    $('#e4-n').textContent = K === 1 ? '1 onda' : `${K} ondas`;
+    $('#e4-m').disabled = i === 0; $('#e4-p').disabled = i === STEPS.length - 1;
+    if (record) log.add({ K, pk, ms });
+  }
+  const seed = () => { const K = STEPS[i]; log.seed({ K, pk: cache[K] ?? (cache[K] = peak(K)), ms: 10 / K }); };
+  $('#e4-m').addEventListener('click', () => { seed(); i = Math.max(0, i - 1); draw(true); });
+  $('#e4-p').addEventListener('click', () => { seed(); i = Math.min(STEPS.length - 1, i + 1); draw(true); });
+  draw(false);
+  return { log };
+})();
+onEnter[slideIndex($('#e4-meas'))] = () => {
+  const it = [...E4.log.items].sort((a, b) => a.K - b.K), el = $('#e4-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const pick = [it[0], it[it.length - 1]].filter((x, i, a) => a.indexOf(x) === i);
+  const w = ms => ms >= 1 ? dec(ms, 1) : dec(ms, ms >= 0.1 ? 2 : 3);
+  el.innerHTML = pick.map(x => `<div class="mrow"><span>${x.K === 1 ? '1 onda' : x.K + ' ondas'}</span><span style="margin-left:auto">pico</span><span class="num" style="margin-left:10px">${dec(x.pk, 2)}</span><span style="margin-left:26px">ancho</span><span class="num" style="margin-left:10px; min-width:130px; text-align:right">${w(x.ms)} ms</span></div>`).join('');
+};
+
+/* ---------- E5 · situación: esquema del filtro LC ---------- */
+(function e5s() {
+  const svg = $('#e5s-svg');
+  // inversor
+  S('rect', { x: 10, y: 60, width: 92, height: 70, rx: 4, class: 'sch-box' }, svg);
+  S('path', { d: 'M24,110 v-26 h16 v26 h16 v-26 h16 v26 h14', class: 'sch', 'stroke-width': 2 }, svg);
+  // bobina L
+  S('path', { d: 'M102,95 h20' + ' a9,9 0 0 1 18,0'.repeat(4) + ' h20', class: 'sch' }, svg);
+  S('text', { x: 158, y: 76, 'text-anchor': 'middle', class: 'sch-t', text: 'L' }, svg);
+  // nodo y condensador C a tierra
+  S('circle', { cx: 232, cy: 95, r: 3.5, fill: 'var(--ink)' }, svg);
+  S('path', { d: 'M232,95 v40 M214,135 h36 M214,145 h36 M232,145 v40 M218,185 h28 M223,192 h18 M228,199 h8', class: 'sch' }, svg);
+  S('text', { x: 196, y: 150, 'text-anchor': 'middle', class: 'sch-t', text: 'C' }, svg);
+  // motor
+  S('path', { d: 'M232,95 h40', class: 'sch' }, svg);
+  S('circle', { cx: 296, cy: 95, r: 24, class: 'sch-box' }, svg);
+  S('text', { x: 296, y: 105, 'text-anchor': 'middle', class: 'sch-t', text: 'M' }, svg);
+  // formas de onda antes y después
+  S('path', { d: path(sq, 20, 96, 34, 12, 0, 4 * PI, 200), class: 'w-sum', 'stroke-width': 2.5 }, svg);
+  S('path', { d: path(Math.sin, 262, 330, 34, 12, 0, 4 * PI, 200), class: 'w-sine', style: 'stroke:var(--h1)' }, svg);
+  S('path', { d: 'M110,34 h110 m-10,-6 l10,6 l-10,6', class: 'sch', 'stroke-width': 2 }, svg);
+})();
+
+/* ---------- E5 · explorar: filtro pasa bajos de 2.º orden ---------- */
+const E5 = (function e5() {
+  const rng = $('#e5-fc');
+  const fcOf = v => 50 * Math.pow(40, v / 1000);                 // 50 Hz … 2000 Hz (escala logarítmica)
+  const Hm = (f, fc) => 1 / Math.sqrt(1 + (f / fc) ** 4);          // |H| Butterworth 2.º orden
+  const Hph = (f, fc) => -Math.atan2(Math.SQRT2 * f / fc, 1 - (f / fc) ** 2);
+  const NS = odd(200);                                             // armónicos hasta 19 950 Hz para el cálculo
+  function metrics(fc) {
+    let h = 0; const v1 = bSq(1) * Hm(50, fc);
+    for (const n of NS) if (n > 1) h += (bSq(n) * Hm(50 * n, fc)) ** 2;
+    return { thd: Math.sqrt(h) / v1, pass: Hm(50, fc) };
+  }
+  const log = Log('e5', {
+    key: it => Math.round(it.fc), sort: (a, b) => a.fc - b.fc,
+    row: it => `<span>${Math.round(it.fc)}</span><span>${pct0(it.thd)}</span>`,
+    goal: it => it.thd < 0.15 && it.pass >= 0.9
+  });
+  function draw() {
+    const fc = fcOf(+rng.value), m = metrics(fc);
+    const out = t => { let s = 0; for (let k = 0; k < 40; k++) { const n = 2 * k + 1; s += bSq(n) * Hm(50 * n, fc) * Math.sin(n * t + Hph(50 * n, fc)); } return s; };
+    scope($('#e5-svg'), [{ fn: sq, cls: 'w-target', steps: 800 }, { fn: out, cls: 'w-sum', steps: 500 }], { A: 36 });
+    // espectro: 50 … 950 Hz, entrada (contorno) y salida (relleno), con la curva del filtro
+    const sp = $('#e5-spec'); sp.replaceChildren();
+    const [Ws, Hs] = vb(sp), base = Hs - 4, top = 8, fMax = 1000, X = f => 16 + (f / fMax) * (Ws - 32), Y = v => base - v / bSq(1) * (base - top);
+    S('line', { x1: 8, x2: Ws - 8, y1: base, y2: base, class: 'g-ax' }, sp);
+    for (let n = 1; n <= 19; n += 2) {
+      const x = X(50 * n), bw = 16;
+      S('rect', { x: x - bw / 2, y: Y(bSq(n)), width: bw, height: base - Y(bSq(n)), class: 'bar-in' }, sp);
+      const v = bSq(n) * Hm(50 * n, fc);
+      S('rect', { x: x - bw / 2 + 3, y: Y(v), width: bw - 6, height: Math.max(0, base - Y(v)), class: 'bar-out' }, sp);
+    }
+    let d = ''; for (let j = 0; j <= 200; j++) { const f = fMax * j / 200; d += (j ? 'L' : 'M') + X(f).toFixed(1) + ',' + (base - Hm(f, fc) * (base - top)).toFixed(1); }
+    S('path', { d, class: 'hcurve' }, sp);
+    $('#e5-axis').innerHTML = [50, 250, 500, 750].map(f => `<span style="left:${(X(f) / Ws * 100).toFixed(2)}%">${f}</span>`).join('') + '<span class="u">Hz</span>';
+    $('#e5-thd').textContent = pct0(m.thd);
+    $('#e5-v1').textContent = pct0(m.pass);
+    $('#e5-fcv').textContent = Math.round(fc) + ' Hz';
+    return { fc, ...m };
+  }
+  rng.addEventListener('input', draw);
+  rng.addEventListener('change', () => log.add(draw()));
+  draw();
+  return { log };
+})();
+onEnter[slideIndex($('#e5-meas'))] = () => {
+  const it = E5.log.items, el = $('#e5-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const good = it.filter(x => x.pass >= 0.9).sort((a, b) => a.thd - b.thd)[0];
+  const low = [...it].sort((a, b) => a.fc - b.fc)[0];
+  const rows = [];
+  rows.push(['Sin filtro', 0.481, 1]);
+  if (good) rows.push([`Mejor: corte ${Math.round(good.fc)} Hz`, good.thd, good.pass]);
+  if (low && low !== good) rows.push([`Corte ${Math.round(low.fc)} Hz`, low.thd, low.pass]);
+  el.innerHTML = `<div class="mrow" style="height:34px; font-size:16px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase"><span></span><span style="margin-left:auto; width:120px; text-align:right">THD</span><span style="width:170px; text-align:right">50 Hz pasa</span></div>` +
+    rows.map(([t, thd, p]) => `<div class="mrow"><span>${t}</span><span class="num" style="width:120px; text-align:right">${pct0(thd)}</span><span class="num" style="width:170px; text-align:right; margin-left:0">${pct0(p)}</span></div>`).join('');
+};
+
+go(0);
+})();
+</script>
+</body>
+</html>
