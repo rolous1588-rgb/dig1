@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Medidas · Potencia 01: el taller que paga de más</title>
+<!--
+  Medidas Eléctricas · Potencia en CA · Clase 01 (90 min)
+  Modo TV: lienzo fijo 848 × 390, un solo archivo, sin internet. Red de 220 V / 50 Hz.
+  Hilo de la clase: un taller paga recargo por bajo factor de potencia (FP < 0,90).
+  Cada ejercicio: Situación real → Explorar (interactivo, "Sus pruebas") → Conclusión.
+
+  Estructura del código (mismo motor que la clase de Fourier):
+    1. MOTOR   — lienzo, escala, pantalla completa, galería, índice, cabeceras, registro de pruebas.
+    2. PIEZAS  — funciones de dibujo (retícula, trazas, flechas/fasores, textos).
+    3. CONTENIDO — caso, E1…E4, cierre.
+-->
+<style>
+:root{
+  --bg:#F5F6F8; --dot:#DCE1E7; --panel:#FFFFFF; --panel-2:#FAFBFC;
+  --ink:#0E1621; --ink-2:#3A4655; --muted:#6B7684; --line:#D8DDE3; --line-2:#E8EBEF;
+  --accent:#0B57D0; --accent-soft:#E8EFFB; --ok:#0F7B55; --warn:#B3261E;
+  --sum:#0E1621; --target:#98A2AE;
+  /* armónicos: paleta Okabe-Ito (sobria y distinguible con daltonismo) */
+  --h1:#0072B2; --h3:#D55E00; --h5:#009E73; --h7:#CC79A7; --h9:#E69F00; --h11:#56B4E9;
+  --mono:"Roboto Mono",ui-monospace,"Droid Sans Mono","DejaVu Sans Mono",monospace;
+  --sans:Roboto,"Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; background:#0A0D12; overflow:hidden}
+body{font-family:var(--sans); color:var(--ink); -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none}
+[hidden]{display:none!important}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation; margin:0}
+button:focus-visible, input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+/* ================= MOTOR ================= */
+#stage{position:absolute; left:50%; top:50%; width:848px; height:390px; margin:-195px 0 0 -424px; transform:scale(var(--s,1)); overflow:hidden;
+  background-color:var(--bg); background-image:radial-gradient(var(--dot) 1px, transparent 1.2px); background-size:16px 16px}
+.view{position:absolute; inset:0; overflow:hidden; overflow:clip; touch-action:none}
+.track{display:flex; height:100%; will-change:transform; transition:transform .32s cubic-bezier(.2,.7,.2,1)}
+.track.drag{transition:none}
+.slide{flex:0 0 848px; height:100%; overflow:hidden; position:relative; display:flex; flex-direction:column}
+
+/* Cabecera (solo la lee el profesor). Todo a la izquierda: la esquina superior derecha queda libre. */
+.hd{flex:0 0 38px; display:flex; align-items:center; gap:14px; padding:0 28px 0 8px; border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--panel) 70%, transparent)}
+.hd .menu{height:38px; width:40px; border:0; background:transparent; font-size:18px; color:var(--muted)}
+.hd .ex{font-family:var(--mono); font-size:13px; color:var(--muted); letter-spacing:.04em; white-space:nowrap}
+.hd .ex b{color:var(--ink); font-weight:500}
+.steps{display:flex; align-items:center; gap:12px; font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:#A1AAB5}
+.steps span{display:flex; align-items:center; height:38px; border-bottom:2px solid transparent}
+.steps span.on{color:var(--ink); border-bottom-color:var(--accent)}
+.steps i{width:12px; height:1px; background:var(--line)}
+.body{flex:1 1 0; min-height:0; position:relative}
+
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:4px}
+.cap{margin:0; font-size:14px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+
+/* Índice */
+#index{position:absolute; inset:0; z-index:30; background:color-mix(in srgb, var(--bg) 96%, transparent); display:flex; flex-direction:column; padding:18px 28px; gap:6px}
+#index .cap{margin-bottom:6px}
+#index button{display:flex; align-items:center; gap:16px; height:40px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); text-align:left; font-size:18px}
+#index button b{font-family:var(--mono); font-weight:500; color:var(--muted); width:52px}
+#index button.cur{border-color:var(--accent); box-shadow:inset 3px 0 0 var(--accent)}
+
+/* Situación */
+.sit{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:24px; padding:14px 28px 14px}
+.sit .txt{display:flex; flex-direction:column; gap:12px; justify-content:center; min-width:0}
+.sit h2{margin:0; font-size:32px; line-height:1.12; font-weight:600; letter-spacing:-.01em}
+.sit p{margin:0; font-size:28px; line-height:1.25}
+.sit .kick{font-size:28px; color:var(--accent); font-weight:500}
+.sit .fig{margin-top:44px; display:flex; flex-direction:column; min-height:0; overflow:hidden}
+.fig .ro{flex:0 0 40px}
+.fig svg{display:block; width:100%; flex:1 1 0; min-height:0}
+
+/* Explorar */
+.xp{display:grid; grid-template-columns:minmax(0,1fr) var(--strip,222px); grid-template-rows:minmax(0,1fr)}
+.xp-main{display:flex; flex-direction:column; gap:8px; padding:10px 14px 10px 28px; min-height:0; min-width:0}
+.scope{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+.ro{flex:0 0 44px; display:flex; align-items:center; gap:12px; padding:0 14px; border-bottom:1px solid var(--line); background:var(--panel-2); min-width:0}
+.ro .val{font-size:30px; font-weight:500; white-space:nowrap}
+.ro .lbl28{font-size:28px; font-weight:500; white-space:nowrap}
+.ro .bar{flex:1 1 auto; min-width:40px; height:4px; background:var(--line-2); position:relative}
+.ro .bar i{position:absolute; left:0; top:0; bottom:0; background:var(--accent)}
+.ro .bar u{position:absolute; top:-6px; bottom:-6px; width:2px; background:var(--ink-2)}
+.ro .leg{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); white-space:nowrap}
+.ro .leg s{display:inline-block; width:18px; height:0; border-top:3px solid var(--sum); vertical-align:middle; margin-right:4px; text-decoration:none}
+.ro .leg s.t{border-top:2px dashed var(--target)}
+.scope svg{display:block; width:100%; flex:1 1 0; min-height:0}
+.strip{border-left:1px solid var(--line); background:var(--panel); padding:14px 14px 8px; display:flex; flex-direction:column; min-height:0}
+.tbl-h{display:flex; justify-content:space-between; gap:8px; margin:22px 0 0; padding-bottom:6px; border-bottom:1px solid var(--ink-2); font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.tbl-h span{flex:1 1 0; text-align:right} .tbl-h span:first-child{text-align:left; flex:0 0 auto; min-width:30px}
+.log{list-style:none; margin:0; padding:0; flex:1 1 auto; min-height:0; overflow:hidden}
+.log li{display:flex; align-items:center; justify-content:space-between; gap:8px; height:37px; border-bottom:1px solid var(--line-2); font-family:var(--mono); font-size:28px; font-weight:500; font-variant-numeric:tabular-nums}
+.log li > span{flex:1 1 0; text-align:right; white-space:nowrap} .log li > span:first-child{text-align:left; flex:0 0 auto; min-width:30px}
+.log li.new{animation:flash .7s ease-out}
+@keyframes flash{from{background:var(--accent-soft)}}
+.log li.goal{box-shadow:inset 3px 0 0 var(--ok)}
+.empty{margin:10px 0 0; font-size:16px; line-height:1.35; color:var(--muted)}
+.lnk{align-self:flex-start; border:0; background:transparent; padding:4px 0; font-size:14px; font-weight:500; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+.sq{display:flex; gap:3px; flex:0 0 auto}
+.sq i{width:12px; height:12px; border:1px solid #BAC2CC; background:var(--panel)}
+.sq i.on{border-color:var(--k); background:var(--k)}
+
+/* Controles */
+.chs{display:flex; gap:6px; flex:0 0 56px}
+.ch{flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:4px; background:var(--panel);
+  font-family:var(--mono); font-size:28px; font-weight:500; color:#A1AAB5; position:relative}
+.ch::before{content:''; position:absolute; left:7px; top:50%; width:4px; height:26px; margin-top:-13px; border-radius:1px; background:var(--line)}
+.ch.on{color:var(--ink); border-color:var(--ink-2)}
+.ch.on::before{background:var(--k)}
+.unit{font-size:13px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin:0 0 -4px}
+.stepper{display:flex; align-items:center; gap:10px; flex:0 0 56px}
+.stepper button{width:64px; height:56px; border:1px solid var(--ink-2); border-radius:4px; background:var(--panel); font-size:32px; line-height:1}
+.stepper button:disabled{opacity:.3; cursor:default}
+.stepper .sv{min-width:170px; text-align:center; font-size:28px; font-weight:500}
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:48px; background:transparent; margin:0; touch-action:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px; background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:40px; height:40px; margin-top:-18px; border-radius:50%; background:var(--panel); border:3px solid var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.18)}
+input[type=range]::-moz-range-track{height:4px; background:var(--line)}
+input[type=range]::-moz-range-thumb{width:34px; height:34px; border-radius:50%; background:var(--panel); border:3px solid var(--accent)}
+.axis{position:relative; flex:0 0 32px; border-top:1px solid var(--line-2)}
+.axis span{position:absolute; top:0; transform:translateX(-50%); font-family:var(--mono); font-size:28px; line-height:32px; color:var(--ink-2)}
+.axis span.u{right:12px; transform:none; font-size:14px; color:var(--muted); letter-spacing:.06em}
+.slrow{display:flex; align-items:center; gap:14px; flex:0 0 52px}
+.slrow .cap{white-space:nowrap}
+
+/* Conclusión */
+.con{display:flex; flex-direction:column; gap:10px; padding:12px 28px 12px}
+.con > .cap{padding-bottom:6px; border-bottom:1px solid var(--ink-2)}
+.mrow{display:flex; align-items:center; gap:14px; height:42px; border-bottom:1px solid var(--line-2); font-size:28px; font-weight:500; white-space:nowrap}
+.mrow .num{margin-left:auto}
+.mrow .tag{font-family:var(--mono); font-size:14px; color:var(--muted); width:22px}
+.none{margin:6px 0 0; font-size:28px; color:var(--muted)}
+.concl{margin-top:auto; min-height:124px; display:flex; flex-direction:column; justify-content:center; padding:12px 18px; border-left:3px solid var(--accent)}
+.b-concl{align-self:flex-start; height:52px; padding:0 22px; border-radius:4px; border:1px solid var(--ink); background:var(--ink); color:#fff; font-size:18px; font-weight:500}
+.concl .cap{margin:0 0 6px; color:var(--accent)}
+.concl .t{margin:0; font-size:28px; line-height:1.25; font-weight:500}
+
+/* Cierre */
+.close{display:flex; flex-direction:column; gap:6px; padding:16px 28px}
+.close ol{margin:4px 0 0; padding:0; list-style:none; counter-reset:c}
+.close li{counter-increment:c; display:flex; gap:16px; align-items:baseline; min-height:50px; padding:6px 0; border-bottom:1px solid var(--line-2); font-size:28px; font-weight:500}
+.close li::before{content:counter(c,decimal-leading-zero); font-family:var(--mono); font-size:16px; color:var(--accent)}
+.close .next{margin-top:auto; font-size:16px; color:var(--muted)}
+
+/* SVG */
+svg text{font-family:var(--sans); fill:var(--ink)}
+.g-min{stroke:#EEF1F4; stroke-width:1}
+.g-maj{stroke:#E0E5EA; stroke-width:1}
+.g-ax{stroke:#B7C0CA; stroke-width:1}
+.w-target{fill:none; stroke:var(--target); stroke-width:2; stroke-dasharray:7 6}
+.w-sum{fill:none; stroke:var(--sum); stroke-width:3.5; stroke-linejoin:round}
+.w-h{fill:none; stroke-width:2; opacity:.75}
+.w-sine{fill:none; stroke:var(--target); stroke-width:3}
+.w-base{stroke:var(--line); stroke-width:1}
+.bar-in{fill:none; stroke:var(--target); stroke-width:1.5; stroke-dasharray:4 3}
+.bar-out{fill:var(--accent)}
+.hcurve{fill:none; stroke:var(--warn); stroke-width:2.5}
+.sch{fill:none; stroke:var(--ink); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round}
+.sch-box{fill:var(--panel); stroke:var(--ink); stroke-width:2}
+.sch-t{font-size:28px; font-weight:500}
+.mark{fill:none; stroke:var(--warn); stroke-width:2.5}
+.fan-blades{transform-origin:0 0; animation:spin 1.1s linear infinite}
+.fan.shake{animation:shake .09s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shake{0%{transform:translate(0,0)}25%{transform:translate(1.5px,-1px)}50%{transform:translate(-1.5px,1px)}75%{transform:translate(1px,1.5px)}}
+
+/* Inicio y ayudas */
+.start{position:absolute; inset:0; z-index:40; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:24px 56px;
+  background-color:var(--bg); background-image:radial-gradient(var(--dot) 1px, transparent 1.2px); background-size:16px 16px}
+.start .mod{font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:.06em}
+.start h1{margin:0; font-size:36px; line-height:1.15; font-weight:600; letter-spacing:-.01em; max-width:700px}
+.start p{margin:0; font-size:20px; color:var(--ink-2); max-width:640px}
+.go{align-self:flex-start; height:56px; padding:0 28px; border-radius:4px; border:0; background:var(--accent); color:#fff; font-size:20px; font-weight:500}
+.fsback{position:absolute; left:12px; bottom:12px; z-index:35; height:40px; padding:0 14px; border-radius:4px; border:0; background:var(--ink); color:#fff; font-size:14px; font-weight:500; opacity:.9}
+#rotate{position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; text-align:center; padding:32px; background:#0A0D12; color:#fff; font:500 24px/1.3 var(--sans)}
+@media (orientation:portrait){ #rotate{display:flex} }
+@media (prefers-reduced-motion:reduce){ .track{transition:none} .fan-blades,.fan.shake{animation:none} .log li.new{animation:none} }
+
+/* ================= Específico de Potencia ================= */
+:root{ --v:#0072B2; --i:#D55E00; --p:#0E1621; --qc:#009E73; }
+.leg s.sv{border-top:3px solid var(--v)} .leg s.si{border-top:3px solid var(--i)} .leg s.sp{border-top:3px solid var(--p)}
+.bill{padding:0; justify-content:flex-start}
+.brow{display:flex; justify-content:space-between; align-items:center; gap:10px; height:44px; padding:0 14px; border-bottom:1px solid var(--line-2); font-size:28px; white-space:nowrap}
+.brow.tall{height:72px; line-height:1.1}
+.brow.warn{color:var(--warn); font-weight:600; border-bottom:0; background:color-mix(in srgb, var(--warn) 8%, var(--panel))}
+.ro3{flex:0 0 50px; display:flex; align-items:center; gap:18px; overflow:hidden; padding:0 14px; background:var(--panel-2)}
+.ro3 > span{display:flex; align-items:baseline; gap:8px; white-space:nowrap}
+.ro3 b{font-size:30px; font-weight:500}
+.ro3 b.ok{color:var(--ok)} .ro3 b.bad{color:var(--warn)}
+.loads .ch{font-family:var(--sans); flex:1 1 auto; padding:0 12px 0 20px; white-space:nowrap}
+.tabs{display:flex; align-items:center; gap:6px; flex:0 0 48px}
+.tab{height:48px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); font-size:20px; font-weight:500; color:#A1AAB5}
+.tab.on{color:var(--ink); border-color:var(--ink-2); box-shadow:inset 0 -3px 0 var(--accent)}
+.inst{flex:1 1 auto; min-height:0; display:flex; align-items:stretch; justify-content:space-around; padding:8px 6px 6px}
+.dial{flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px}
+.dial svg{width:100%; flex:1 1 0; min-height:0}
+.dial b{font-size:30px; font-weight:500; white-space:nowrap}
+.inst.dig{display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,1fr); gap:0; padding:0; background:#10161F; border-color:#10161F}
+.inst.dig[hidden]{display:none}
+.dcell{display:flex; flex-direction:column; justify-content:center; padding:4px 14px; border-right:1px solid #2A3441; border-bottom:1px solid #2A3441}
+.dcell .cap{color:#8C97A5}
+.dcell b{font-family:var(--mono); font-size:30px; font-weight:500; color:#E9F1FF; white-space:nowrap}
+.dcell b small{font-size:18px; color:#8C97A5; margin-left:6px}
+.mrow > .num ~ .num{margin-left:0}
+.dial .arc{fill:none; stroke:var(--ink-2); stroke-width:2}
+.dial .tk{stroke:var(--ink-2); stroke-width:1.5}
+.dial .ndl{stroke:var(--warn); stroke-width:3; stroke-linecap:round; transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
+.lbl{font-size:28px; font-weight:500}
+.lbl-m{font-size:28px; font-weight:500; fill:var(--muted)}
+</style>
+</head>
+<body>
+<div id="rotate">Gira el celular en horizontal.</div>
+
+<div id="stage">
+  <div class="view" id="view">
+    <div class="track" id="track">
+
+      <!-- ============ CASO ============ -->
+      <section class="slide" data-ex="0" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>El taller que paga de más</h2>
+            <p>Un taller de Sucre usa un motor de 220&nbsp;V todo el día. La factura del mes llegó con un recargo.</p>
+            <p class="kick">Hoy vamos a entender por qué y a quitarlo.</p>
+          </div>
+          <div class="panel fig bill">
+            <div class="ro"><span class="cap">Factura del mes · simplificada</span></div>
+            <div class="brow"><span>Activa</span><span class="num">370 kWh</span></div>
+            <div class="brow"><span>Reactiva</span><span class="num">377 kvarh</span></div>
+            <div class="brow tall"><span>Factor de<br>potencia</span><span class="num">0,70</span></div>
+            <div class="brow warn"><span>Recargo: FP &lt; 0,90</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ E1 · VOLTAJE POR CORRIENTE ============ -->
+      <section class="slide" data-ex="1" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>¿Qué es la potencia en CA?</h2>
+            <p>En CC, P = V·I. En CA, el voltaje y la corriente cambian 50 veces por segundo y no siempre van juntos.</p>
+            <p class="kick">Multipliquemos punto a punto.</p>
+          </div>
+          <div class="panel fig">
+            <div class="ro"><span class="leg"><span><s class="sv"></s>v</span><span><s class="si"></s>i</span><span><s class="sp"></s>p = v·i</span></span></div>
+            <svg id="e1s-svg" viewBox="0 0 338 220" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="1" data-ph="e">
+        <div class="body xp">
+          <div class="xp-main">
+            <div class="panel scope">
+              <div class="ro">
+                <span class="cap">P promedio</span><span class="val num" id="e1-p"></span>
+                <span class="leg" style="margin-left:auto"><span><s class="sv"></s>v</span><span><s class="si"></s>i</span><span><s class="sp"></s>p = v·i</span><span><s class="t"></s>P</span></span>
+              </div>
+              <svg id="e1-svg" viewBox="0 0 560 230" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="slrow">
+              <span class="cap">Desfase φ</span>
+              <input type="range" id="e1-phi" min="0" max="90" step="1" value="0" aria-label="Desfase entre voltaje y corriente">
+              <span class="val num" id="e1-phiv" style="font-size:30px; font-weight:500; min-width:74px; text-align:right"></span>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas · 220 V · 10 A</p>
+            <div class="tbl-h"><span>φ</span><span>P (W)</span></div>
+            <ol class="log" id="e1-log"></ol>
+            <p class="empty" id="e1-empty">Muevan el desfase y suelten: cada prueba se anota aquí.</p>
+            <button type="button" class="lnk" id="e1-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="1" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron · 220 V · 10 A</p>
+          <div id="e1-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">La potencia va y vuelve. P es el promedio de v·i: P = V·I·cos φ. Con 90° de desfase circula corriente, pero P = 0.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E2 · EL TRIÁNGULO ============ -->
+      <section class="slide" data-ex="2" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Tres potencias</h2>
+            <p>La red entrega S = V·I. Una parte hace trabajo: P. Otra va y vuelve entre la red y la bobina del motor: Q.</p>
+            <p class="kick">Veamos cómo cambian con la carga.</p>
+          </div>
+          <div class="panel fig" style="padding:0">
+            <svg id="e2s-svg" viewBox="0 0 338 250" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="2" data-ph="e">
+        <div class="body xp" style="--strip:240px">
+          <div class="xp-main">
+            <div class="panel ro3">
+              <span><span class="cap">P</span><b class="num" id="e2-P"></b></span>
+              <span><span class="cap">Q</span><b class="num" id="e2-Q"></b></span>
+              <span><span class="cap">FP</span><b class="num" id="e2-F"></b></span>
+            </div>
+            <div style="display:flex; gap:8px; flex:1 1 auto; min-height:0">
+              <div class="panel" style="flex:1 1 0; min-width:0; display:flex"><svg id="e2-ph" viewBox="0 0 280 196" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%"></svg></div>
+              <div class="panel" style="flex:1 1 0; min-width:0; display:flex"><svg id="e2-tr" viewBox="0 0 280 196" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%"></svg></div>
+            </div>
+            <div class="chs loads" id="e2-loads"></div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas · todas 10 A</p>
+            <div class="tbl-h"><span>Carga</span><span>P (W)</span></div>
+            <ol class="log" id="e2-log"></ol>
+            <p class="empty" id="e2-empty">Cada carga que prueben se anota aquí.</p>
+            <button type="button" class="lnk" id="e2-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="2" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron · misma corriente: 10 A · S = 2200 VA</p>
+          <div id="e2-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">S = V·I es lo que carga la red. P hace trabajo; Q va y vuelve. El factor de potencia, P/S = cos φ, dice qué parte se aprovecha.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E3 · LOS INSTRUMENTOS ============ -->
+      <section class="slide" data-ex="3" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Medir en el taller</h2>
+            <p>El electricista mide 220&nbsp;V y 10&nbsp;A, y multiplica: 2200. Pero el medidor de la distribuidora cuenta mucho menos.</p>
+            <p class="kick">¿Qué instrumento mide P?</p>
+          </div>
+          <div class="panel fig" style="padding:0">
+            <svg id="e3s-svg" viewBox="0 0 338 250" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="3" data-ph="e">
+        <div class="body xp" style="--strip:290px">
+          <div class="xp-main">
+            <div class="tabs" id="e3-tabs">
+              <button type="button" class="tab on" data-v="ana">Analógicos</button>
+              <button type="button" class="tab" data-v="dig">Analizador</button>
+              <span class="cap" style="margin-left:auto; white-space:nowrap">FP = W ÷ V·A</span><b class="num" id="e3-fp" style="font-size:30px; font-weight:500"></b>
+            </div>
+            <div class="panel inst" id="e3-ana">
+              <div class="dial"><svg id="e3-dV" viewBox="0 0 170 104"></svg><b class="num" id="e3-rV"></b></div>
+              <div class="dial"><svg id="e3-dA" viewBox="0 0 170 104"></svg><b class="num" id="e3-rA"></b></div>
+              <div class="dial"><svg id="e3-dW" viewBox="0 0 170 104"></svg><b class="num" id="e3-rW"></b></div>
+            </div>
+            <div class="panel inst dig" id="e3-dig" hidden></div>
+            <div class="chs loads" id="e3-loads"></div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas</p>
+            <div class="tbl-h"><span>Carga</span><span>V·A</span><span>W</span></div>
+            <ol class="log" id="e3-log"></ol>
+            <p class="empty" id="e3-empty">Cada carga que prueben se anota aquí.</p>
+            <button type="button" class="lnk" id="e3-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="3" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron</p>
+          <div id="e3-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">Voltímetro y amperímetro dan S = V·A. Solo el vatímetro (o el analizador) mide P. El cociente W ÷ (V·A) es el factor de potencia.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ E4 · QUITAR EL RECARGO ============ -->
+      <section class="slide" data-ex="4" data-ph="s">
+        <div class="body sit">
+          <div class="txt">
+            <h2>Corregir el factor de potencia</h2>
+            <p>Un capacitor en paralelo con el motor entrega la Q que el motor pide. La red ya no tiene que llevarla.</p>
+            <p class="kick">¿Qué capacitor necesita el taller?</p>
+          </div>
+          <div class="panel fig" style="padding:0">
+            <svg id="e4s-svg" viewBox="0 0 338 250" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-ex="4" data-ph="e">
+        <div class="body xp">
+          <div class="xp-main">
+            <div class="panel ro3">
+              <span><span class="cap">FP</span><b class="num" id="e4-F"></b></span>
+              <span><span class="cap">I</span><b class="num" id="e4-I"></b></span>
+              <span><b id="e4-st"></b></span>
+            </div>
+            <div class="panel" style="flex:1 1 auto; min-height:0; display:flex"><svg id="e4-tr" viewBox="0 0 560 190" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%"></svg></div>
+            <div class="slrow">
+              <span class="cap">Capacitor</span>
+              <input type="range" id="e4-c" min="0" max="150" step="1" value="0" aria-label="Capacidad del capacitor en microfaradios">
+              <span class="val num" id="e4-cv" style="font-size:30px; font-weight:500; min-width:130px; text-align:right; white-space:nowrap"></span>
+            </div>
+          </div>
+          <aside class="strip">
+            <p class="cap">Sus pruebas · meta 0,95</p>
+            <div class="tbl-h"><span style="text-transform:none">µF</span><span>FP</span><span>A</span></div>
+            <ol class="log" id="e4-log"></ol>
+            <p class="empty" id="e4-empty">Muevan el capacitor y suelten: cada prueba se anota aquí.</p>
+            <button type="button" class="lnk" id="e4-reset" hidden>Borrar pruebas</button>
+          </aside>
+        </div>
+      </section>
+      <section class="slide" data-ex="4" data-ph="c">
+        <div class="body con">
+          <p class="cap">Lo que midieron · P = 1540 W en todos los casos</p>
+          <div id="e4-meas"></div>
+          <div class="panel concl"><button type="button" class="b-concl">Mostrar conclusión</button>
+            <div hidden><p class="cap">Conclusión</p><p class="t">El capacitor aporta la Q del motor: sube el FP y baja la corriente sin cambiar P. Si se exagera, la carga se vuelve capacitiva.</p></div></div>
+        </div>
+      </section>
+
+      <!-- ============ CIERRE ============ -->
+      <section class="slide" data-ex="5" data-ph="s">
+        <div class="body close">
+          <p class="cap">Lo que aprendimos hoy</p>
+          <ol>
+            <li>En CA, P es el promedio de v·i: P = V·I·cos φ.</li>
+            <li>S = V·I carga la red; P trabaja; Q va y vuelve.</li>
+            <li>V y A no bastan: P se mide con vatímetro.</li>
+            <li>Un capacitor en paralelo corrige el FP.</li>
+          </ol>
+          <p class="next">Próxima clase: potencia trifásica y el método de los dos vatímetros.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="index" hidden></div>
+  <button type="button" class="fsback" id="fsback" hidden>⛶ Volver a pantalla completa</button>
+
+  <div class="start" id="start">
+    <span class="mod">MEDIDAS ELÉCTRICAS · POTENCIA EN CA · CLASE 01 · 90 MIN</span>
+    <h1>El taller que paga de más</h1>
+    <p>Un caso real y cuatro ejercicios. Pasen de pantalla deslizando el dedo; el botón ☰ de arriba abre el índice.</p>
+    <button type="button" class="go" id="b-start">Empezar</button>
+    <p style="font-size:14px; color:var(--muted)">Al empezar se activa la pantalla completa.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function S(tag, a, p) { const e = document.createElementNS(NS, tag); if (a) for (const k in a) { if (k === 'text') e.textContent = a[k]; else e.setAttribute(k, a[k]); } if (p) p.appendChild(e); return e; }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PI = Math.PI;
+// Formatos: coma decimal y redondeo HACIA ABAJO en porcentajes (nunca muestra 100 % si no lo es)
+const pct0 = x => Math.floor(x * 100 + 1e-9) + '%';
+const pct1 = x => (Math.floor(x * 1000 + 1e-9) / 10).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const dec = (x, d) => x.toLocaleString('es', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ======================================================================
+   1. MOTOR
+   ====================================================================== */
+const stage = $('#stage'), view = $('#view'), track = $('#track');
+const SLIDES = $$('.slide');
+const N = SLIDES.length, W = 848;
+let idx = 0, scale = 1, started = false;
+const onEnter = {};   // funciones que se ejecutan al llegar a una pantalla (por índice)
+
+function fit() {
+  scale = Math.min(window.innerWidth / 848, window.innerHeight / 390);
+  stage.style.setProperty('--s', scale);
+  $('#fsback').hidden = !started || !!document.fullscreenElement || !document.fullscreenEnabled;
+}
+window.addEventListener('resize', fit);
+document.addEventListener('fullscreenchange', () => setTimeout(fit, 100));
+async function enterFS() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
+  try { await screen.orientation.lock('landscape'); } catch (e) {}
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
+  fit();
+}
+document.addEventListener('visibilitychange', () => { if (started && document.visibilityState === 'visible') { try { navigator.wakeLock && navigator.wakeLock.request('screen'); } catch (e) {} } });
+$('#fsback').addEventListener('click', enterFS);
+$('#b-start').addEventListener('click', () => { started = true; $('#start').hidden = true; enterFS(); });
+fit();
+
+function go(i) {
+  idx = Math.max(0, Math.min(N - 1, i));
+  track.style.transform = `translateX(${-idx * W}px)`;
+  view.scrollLeft = 0;
+  const f = onEnter[idx]; if (f) f();
+}
+let drag = null;
+view.addEventListener('pointerdown', e => {
+  if (e.target.closest('button, input')) return;
+  drag = { x: e.clientX, y: e.clientY, id: e.pointerId, dx: 0, t: performance.now(), lock: null };
+});
+view.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x) / scale, dy = (e.clientY - drag.y) / scale;
+  if (drag.lock === null && Math.hypot(dx, dy) > 10) {
+    drag.lock = Math.abs(dx) > Math.abs(dy);
+    if (drag.lock) { track.classList.add('drag'); try { view.setPointerCapture(e.pointerId); } catch (_) {} }
+  }
+  if (drag.lock) {
+    drag.dx = dx;
+    const edge = (idx === 0 && dx > 0) || (idx === N - 1 && dx < 0);
+    track.style.transform = `translateX(${-idx * W + (edge ? dx * 0.3 : dx)}px)`;
+  }
+});
+function endDrag() {
+  if (!drag) return;
+  track.classList.remove('drag');
+  if (drag.lock) {
+    const v = drag.dx / Math.max(1, performance.now() - drag.t);
+    if (drag.dx < -80 || v < -0.6) go(idx + 1);
+    else if (drag.dx > 80 || v > 0.6) go(idx - 1);
+    else go(idx);
+  }
+  drag = null;
+}
+view.addEventListener('pointerup', endDrag);
+view.addEventListener('pointercancel', endDrag);
+view.addEventListener('scroll', () => { if (view.scrollLeft) view.scrollLeft = 0; });
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input')) return;
+  if (e.key === 'ArrowRight') go(idx + 1);
+  if (e.key === 'ArrowLeft') go(idx - 1);
+});
+
+// Cabeceras e índice (generados a partir de data-ex / data-ph)
+const EX = ['Caso', 'E1 · Voltaje por corriente', 'E2 · El triángulo', 'E3 · Los instrumentos', 'E4 · Quitar el recargo', 'Cierre'];
+const PH = { s: 'Situación', e: 'Explorar', c: 'Conclusión' };
+SLIDES.forEach(sl => {
+  const ex = +sl.dataset.ex, ph = sl.dataset.ph;
+  const hd = document.createElement('header'); hd.className = 'hd';
+  const lab = EX[ex].split(' · ');
+  hd.innerHTML = `<button type="button" class="menu" aria-label="Índice">☰</button><span class="ex">${lab.length > 1 ? `<b>${lab[0]}</b> ${lab[1]}` : `<b>${lab[0]}</b>`}</span>` +
+    (ex >= 1 && ex <= EX.length - 2 ? `<nav class="steps">${['s', 'e', 'c'].map(k => `<span class="${k === ph ? 'on' : ''}">${PH[k]}</span>`).join('<i></i>')}</nav>` : '');
+  sl.prepend(hd);
+});
+function openIndex() {
+  const box = $('#index');
+  const cur = +SLIDES[idx].dataset.ex;
+  box.innerHTML = '<p class="cap">Índice de la clase</p>' + EX.map((t, i) => {
+    const first = SLIDES.findIndex(s => +s.dataset.ex === i);
+    const [a, b] = t.split(' · ');
+    return `<button type="button" data-go="${first}" class="${i === cur ? 'cur' : ''}"><b>${b ? a : '—'}</b>${b || a}</button>`;
+  }).join('');
+  box.hidden = false;
+}
+stage.addEventListener('click', e => {
+  if (e.target.closest('.hd .menu')) { openIndex(); return; }
+  const g = e.target.closest('#index [data-go]');
+  if (g) { $('#index').hidden = true; go(+g.dataset.go); return; }
+  if (e.target.closest('#index')) { $('#index').hidden = true; return; }
+  const b = e.target.closest('.b-concl');
+  if (b) { b.hidden = true; b.nextElementSibling.hidden = false; return; }
+  const c = e.target.closest('.concl > div');
+  if (c) { c.hidden = true; c.previousElementSibling.hidden = false; }
+});
+const slideIndex = el => SLIDES.indexOf(el.closest('.slide'));
+
+// Registro de pruebas ("Sus pruebas"): sin duplicados, máx. 6, ordenado
+function Log(id, { key, sort, row, goal }) {
+  // seed(): anota el estado inicial la primera vez que la clase cambia algo
+  let items = [], fresh = null;
+  const ol = $(`#${id}-log`), empty = $(`#${id}-empty`), reset = $(`#${id}-reset`);
+  function render() {
+    ol.innerHTML = '';
+    [...items].sort(sort).forEach(it => {
+      const li = document.createElement('li');
+      li.className = (it === fresh ? 'new ' : '') + (goal && goal(it) ? 'goal' : '');
+      li.innerHTML = row(it);
+      ol.appendChild(li);
+    });
+    empty.hidden = items.length > 0; reset.hidden = items.length === 0;
+  }
+  reset.addEventListener('click', () => { items = []; fresh = null; render(); });
+  render();
+  return {
+    add(it) { items = items.filter(x => key(x) !== key(it)); items.push(it); if (items.length > 6) items.splice(1, 1); fresh = it; render(); },
+    seed(it) { if (!items.length) { items.push(it); } },
+    get items() { return items; }
+  };
+}
+
+/* ======================================================================
+   2. PIEZAS DE DIBUJO
+   ====================================================================== */
+const V = 220, F = 50, W50 = 2 * PI * F;
+const deg = r => r * 180 / PI, rad = d => d * PI / 180;
+const fp2 = x => dec(Math.round(x * 100 + 1e-9) / 100, 2);            // factor de potencia con 2 decimales
+const int = x => Math.round(x).toLocaleString('es');
+function vb(svg) { const [, , w, h] = svg.getAttribute('viewBox').split(' ').map(Number); return [w, h]; }
+function path(fn, x0, x1, y0, yS, t0, t1, steps = 400) {
+  let d = '';
+  for (let i = 0; i <= steps; i++) {
+    const t = t0 + (t1 - t0) * i / steps;
+    d += (i ? 'L' : 'M') + (x0 + (x1 - x0) * i / steps).toFixed(1) + ',' + (y0 - fn(t) * yS).toFixed(1);
+  }
+  return d;
+}
+function grid(svg, Wd, Hd) {
+  const dx = Wd / 10, dy = Hd / 8;
+  for (let i = 1; i < 50; i++) if (i % 5) S('line', { x1: i * dx / 5, x2: i * dx / 5, y1: 0, y2: Hd, class: 'g-min' }, svg);
+  for (let i = 1; i < 10; i++) S('line', { x1: i * dx, x2: i * dx, y1: 0, y2: Hd, class: 'g-maj' }, svg);
+  for (let j = 1; j < 8; j++) S('line', { x1: 0, x2: Wd, y1: j * dy, y2: j * dy, class: 'g-maj' }, svg);
+}
+// Flecha (fasor o potencia)
+function arrow(svg, x1, y1, x2, y2, color, w = 3.5, dash) {
+  const L = Math.hypot(x2 - x1, y2 - y1); if (L < 1) return;
+  const ux = (x2 - x1) / L, uy = (y2 - y1) / L, h = 11, b = 6;
+  S('line', { x1, y1, x2: x2 - ux * h * 0.8, y2: y2 - uy * h * 0.8, stroke: color, 'stroke-width': w, 'stroke-dasharray': dash || null, 'stroke-linecap': 'round' }, svg);
+  S('path', { d: `M${x2},${y2} L${x2 - ux * h - uy * b},${y2 - uy * h + ux * b} L${x2 - ux * h + uy * b},${y2 - uy * h - ux * b} Z`, fill: color }, svg);
+}
+function txt(svg, x, y, t, cls = 'lbl', anchor = 'middle', color) {
+  const e = S('text', { x, y, 'text-anchor': anchor, class: cls, text: t }, svg);
+  if (color) e.style.fill = color;
+  return e;
+}
+const noData = '<p class="none">Aún no hay pruebas: vuelvan a Explorar.</p>';
+const hdrRow = cols => `<div class="mrow" style="height:34px; font-size:16px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase">${cols}</div>`;
+
+/* ======================================================================
+   3. CONTENIDO
+   ====================================================================== */
+
+/* ---------- E1 · situación: el producto se dibuja punto a punto ---------- */
+(function e1s() {
+  const svg = $('#e1s-svg'), me = SLIDES.indexOf(svg.closest('.slide'));
+  const [Wd, Hd] = vb(svg), phi = rad(40), t1 = 4 * PI, yv = 58, yp = 160, A = 40;
+  let k = 0, timer = null;
+  function frame() {
+    svg.replaceChildren(); grid(svg, Wd, Hd);
+    S('line', { x1: 0, x2: Wd, y1: yv, y2: yv, class: 'g-ax' }, svg);
+    S('line', { x1: 0, x2: Wd, y1: yp, y2: yp, class: 'g-ax' }, svg);
+    S('path', { d: path(Math.sin, 0, Wd, yv, A, 0, t1), fill: 'none', stroke: css('--v'), 'stroke-width': 2.5 }, svg);
+    S('path', { d: path(t => Math.sin(t - phi), 0, Wd, yv, A * 0.8, 0, t1), fill: 'none', stroke: css('--i'), 'stroke-width': 2.5 }, svg);
+    const frac = k / 60, tt = t1 * frac;
+    if (frac > 0) S('path', { d: path(t => Math.sin(t) * Math.sin(t - phi), 0, Wd * frac, yp, A * 1.1, 0, tt, 200), class: 'w-sum' }, svg);
+    const x = Wd * frac;
+    S('line', { x1: x, x2: x, y1: 0, y2: Hd, stroke: css('--accent'), 'stroke-width': 1.5 }, svg);
+    k = k >= 60 ? 0 : k + 1;
+  }
+  frame();
+  onEnter[me] = () => { clearInterval(timer); k = 0; frame(); timer = setInterval(() => { if (idx !== me) { clearInterval(timer); return; } frame(); }, 70); };
+})();
+
+/* ---------- E1 · explorar: v, i y p(t) con áreas ---------- */
+const E1 = (function e1() {
+  const svg = $('#e1-svg'), rng = $('#e1-phi'), I = 10;
+  const Pof = d => V * I * Math.cos(rad(d));
+  const log = Log('e1', {
+    key: it => it.d, sort: (a, b) => a.d - b.d,
+    row: it => `<span>${it.d}°</span><span>${int(it.P)}</span>`,
+    goal: it => it.d === 90
+  });
+  function draw() {
+    const d = +rng.value, phi = rad(d), P = Pof(d);
+    svg.replaceChildren();
+    const [Wd, Hd] = vb(svg), yv = 50, yp = 160, A = 38, AP = 30, t0 = 0, t1 = 4 * PI;
+    grid(svg, Wd, Hd);
+    S('line', { x1: 0, x2: Wd, y1: yv, y2: yv, class: 'g-ax' }, svg);
+    S('line', { x1: 0, x2: Wd, y1: yp, y2: yp, class: 'g-ax' }, svg);
+    // p(t)/VI = cos φ − cos(2t − φ)  (normalizado a VI)
+    const pn = t => Math.cos(phi) - Math.cos(2 * t - phi);
+    const poly = sel => { let dd = `M0,${yp}`; for (let j = 0; j <= 500; j++) { const t = t0 + (t1 - t0) * j / 500; dd += `L${(Wd * j / 500).toFixed(1)},${(yp - sel(pn(t)) * AP).toFixed(1)}`; } return dd + `L${Wd},${yp}Z`; };
+    S('path', { d: poly(v => Math.max(v, 0)), fill: css('--accent'), 'fill-opacity': .18 }, svg);
+    S('path', { d: poly(v => Math.min(v, 0)), fill: css('--warn'), 'fill-opacity': .22 }, svg);
+    S('path', { d: path(Math.sin, 0, Wd, yv, A, t0, t1), fill: 'none', stroke: css('--v'), 'stroke-width': 2.5 }, svg);
+    S('path', { d: path(t => Math.sin(t - phi), 0, Wd, yv, A * 0.8, t0, t1), fill: 'none', stroke: css('--i'), 'stroke-width': 2.5 }, svg);
+    S('path', { d: path(pn, 0, Wd, yp, AP, t0, t1, 500), class: 'w-sum' }, svg);
+    S('line', { x1: 0, x2: Wd, y1: yp - Math.cos(phi) * AP, y2: yp - Math.cos(phi) * AP, class: 'w-target' }, svg);
+    $('#e1-p').textContent = int(P) + ' W';
+    $('#e1-phiv').textContent = d + '°';
+    return { d, P };
+  }
+  rng.addEventListener('input', draw);
+  rng.addEventListener('change', () => log.add(draw()));
+  draw();
+  return { log };
+})();
+onEnter[SLIDES.indexOf($('#e1-meas').closest('.slide'))] = () => {
+  const it = [...E1.log.items].sort((a, b) => a.d - b.d), el = $('#e1-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const pick = it.length <= 3 ? it : [it[0], it[Math.floor(it.length / 2)], it[it.length - 1]];
+  el.innerHTML = hdrRow('<span>Desfase φ</span><span style="margin-left:auto; width:170px; text-align:right">cos φ</span><span style="width:170px; text-align:right">P</span>') +
+    pick.map(x => `<div class="mrow"><span>φ = ${x.d}°</span><span class="num" style="margin-left:auto; width:170px; text-align:right">${fp2(Math.cos(rad(x.d)))}</span><span class="num" style="width:170px; text-align:right; margin-left:0">${int(x.P)} W</span></div>`).join('');
+};
+
+/* ---------- E2 · situación: triángulo de potencias ---------- */
+(function e2s() {
+  const svg = $('#e2s-svg'), k = 0.1, x0 = 40, y0 = 205, P = 1540, Q = 1571;
+  const xP = x0 + P * k, yQ = y0 - Q * k;
+  arrow(svg, x0, y0, xP, y0, css('--ok'), 4);
+  arrow(svg, xP, y0, xP, yQ, css('--i'), 4);
+  arrow(svg, x0, y0, xP, yQ, css('--ink'), 4);
+  const a = Math.atan2(y0 - yQ, xP - x0);
+  S('path', { d: `M${x0 + 44},${y0} A44,44 0 0 0 ${x0 + 44 * Math.cos(a)},${y0 - 44 * Math.sin(a)}`, fill: 'none', stroke: css('--muted'), 'stroke-width': 1.5 }, svg);
+  txt(svg, x0 + 62, y0 - 10, 'φ', 'lbl-m', 'start');
+  txt(svg, (x0 + xP) / 2, y0 + 34 > 248 ? y0 - 8 : y0 + 30, 'P', 'lbl', 'middle', css('--ok'));
+  txt(svg, xP + 12, (y0 + yQ) / 2 + 10, 'Q', 'lbl', 'start', css('--i'));
+  txt(svg, (x0 + xP) / 2 - 18, (y0 + yQ) / 2 - 8, 'S', 'lbl', 'end');
+  txt(svg, 330, 40, 'S² = P² + Q²', 'lbl-m', 'end');
+})();
+
+/* ---------- E2 · explorar: fasores y triángulo por carga ---------- */
+const LOADS2 = [
+  { id: 'R', name: 'Horno', phi: 0 },
+  { id: 'M', name: 'Motor', phi: Math.acos(0.70) },
+  { id: 'C', name: 'Capacitor', phi: -PI / 2 }
+];
+const E2 = (function e2() {
+  const I = 10, Sva = V * I; let cur = LOADS2[1];
+  const log = Log('e2', {
+    key: it => it.id, sort: (a, b) => b.P - a.P,
+    row: it => `<span>${it.name}</span><span>${int(it.P)}</span>`
+  });
+  const kind = phi => Math.abs(phi) < 1e-6 ? '' : phi > 0 ? ' ind.' : ' cap.';
+  function draw(record) {
+    const phi = cur.phi, P = Sva * Math.cos(phi), Q = Sva * Math.sin(phi);
+    $('#e2-P').textContent = int(Math.abs(P) < 0.5 ? 0 : P) + ' W';
+    $('#e2-Q').textContent = int(Math.abs(Q) < 0.5 ? 0 : Q) + ' var';
+    $('#e2-F').textContent = fp2(Math.cos(phi)) + kind(phi);
+    // Fasores: V en la referencia; I atrasada (φ>0, abajo) o adelantada (φ<0, arriba)
+    const ph = $('#e2-ph'); ph.replaceChildren();
+    const ox = 34, oy = 98;
+    S('line', { x1: 10, x2: 270, y1: oy, y2: oy, class: 'g-ax' }, ph);
+    arrow(ph, ox, oy, ox + 170, oy, css('--v'), 4);
+    const ix = ox + 88 * Math.cos(phi), iy = oy + 88 * Math.sin(phi);
+    arrow(ph, ox, oy, ix, iy, css('--i'), 4);
+    if (Math.abs(phi) > 0.05) {
+      const r = 46, sweep = phi > 0 ? 1 : 0;
+      S('path', { d: `M${ox + r},${oy} A${r},${r} 0 0 ${sweep} ${ox + r * Math.cos(phi)},${oy + r * Math.sin(phi)}`, fill: 'none', stroke: css('--muted'), 'stroke-width': 1.5 }, ph);
+    }
+    txt(ph, ox + 180, oy - 10, 'V', 'lbl', 'start', css('--v'));
+    const lx = ix + 12, ly = Math.abs(phi) < 0.05 ? oy + 34 : Math.min(186, Math.max(30, iy + (phi > 0 ? 26 : 22)));
+    txt(ph, lx, ly, 'I', 'lbl', 'start', css('--i'));
+    txt(ph, 262, phi >= 0 ? 36 : 186, `φ = ${Math.round(deg(phi))}°`, 'lbl-m', 'end');
+    // Triángulo: P horizontal, Q vertical (arriba inductiva, abajo capacitiva), S hipotenusa
+    const tr = $('#e2-tr'); tr.replaceChildren();
+    const k = 150 / Sva, x0 = 36, y0 = Q >= -1 ? 170 : 26;
+    const xP = x0 + P * k, yQ = y0 - Q * k;
+    if (P > 1) arrow(tr, x0, y0, xP, y0, css('--ok'), 4);
+    if (Math.abs(Q) > 1) arrow(tr, xP, y0, xP, yQ, css('--i'), 4);
+    arrow(tr, x0, y0, xP, yQ, css('--ink'), 3, P > 1 && Math.abs(Q) > 1 ? null : '0');
+    if (P > 1) txt(tr, (x0 + xP) / 2, Q >= -1 ? y0 + 26 : y0 - 8, 'P', 'lbl', 'middle', css('--ok'));
+    if (Math.abs(Q) > 1) txt(tr, xP + 12, (y0 + yQ) / 2 + 10, 'Q', 'lbl', 'start', css('--i'));
+    if (P > 1 && Math.abs(Q) > 1) txt(tr, (x0 + xP) / 2 - 14, (y0 + yQ) / 2 - 6, 'S', 'lbl', 'end');
+    else txt(tr, xP - 12, (y0 + yQ) / 2 + 10, 'S', 'lbl', 'end');
+    $$('#e2-loads .ch').forEach(b => b.classList.toggle('on', b.dataset.id === cur.id));
+    if (record) log.add({ id: cur.id, name: cur.name, P, Q, phi });
+  }
+  const box = $('#e2-loads');
+  LOADS2.forEach(L => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ch'; b.dataset.id = L.id; b.textContent = L.name; b.style.setProperty('--k', css('--accent'));
+    b.addEventListener('click', () => { if (!log.items.length) log.seed({ id: cur.id, name: cur.name, P: Sva * Math.cos(cur.phi), Q: Sva * Math.sin(cur.phi), phi: cur.phi }); cur = L; draw(true); });
+    box.appendChild(b);
+  });
+  draw(false);
+  return { log };
+})();
+onEnter[SLIDES.indexOf($('#e2-meas').closest('.slide'))] = () => {
+  const it = [...E2.log.items].sort((a, b) => b.P - a.P), el = $('#e2-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const c = 'text-align:right; width:150px';
+  el.innerHTML = hdrRow(`<span>Carga</span><span style="margin-left:auto; ${c}">P</span><span style="text-align:right; width:190px">Q</span><span style="${c}">FP</span>`) +
+    it.map(x => `<div class="mrow"><span>${x.name}</span><span class="num" style="margin-left:auto; ${c}">${int(Math.abs(x.P) < .5 ? 0 : x.P)} W</span><span class="num" style="text-align:right; width:190px">${int(Math.abs(x.Q) < .5 ? 0 : x.Q)} var</span><span class="num" style="${c}">${fp2(Math.cos(x.phi))}</span></div>`).join('');
+};
+
+/* ---------- E3 · situación: esquema de conexión de V, A y W ---------- */
+(function e3s() {
+  const svg = $('#e3s-svg'), ink = css('--ink');
+  const meter = (x, y, t, r = 22) => { S('circle', { cx: x, cy: y, r, class: 'sch-box' }, svg); txt(svg, x, y + 10, t, 'lbl'); };
+  // fuente
+  S('circle', { cx: 34, cy: 130, r: 22, class: 'sch-box' }, svg);
+  S('path', { d: path(Math.sin, 20, 48, 130, 8, 0, 2 * PI, 40), class: 'sch', 'stroke-width': 2 }, svg);
+  // conductor superior con A y bobina de corriente de W en serie
+  S('path', { d: 'M34,108 V40 H86 M130,40 H176 M226,40 H286 V100 M286,160 V220 H34 V152', class: 'sch' }, svg);
+  meter(108, 40, 'A');
+  S('rect', { x: 176, y: 22, width: 50, height: 36, rx: 4, class: 'sch-box' }, svg); txt(svg, 201, 50, 'W', 'lbl');
+  // bobina de tensión de W en paralelo (línea punteada a la carga)
+  S('path', { d: 'M201,58 V92 H262', class: 'sch', 'stroke-dasharray': '5 5', 'stroke-width': 2 }, svg);
+  // carga (motor)
+  S('circle', { cx: 286, cy: 130, r: 30, class: 'sch-box' }, svg); txt(svg, 286, 140, 'M', 'lbl');
+  // voltímetro en paralelo
+  S('path', { d: 'M150,40 V104 M150,152 V220', class: 'sch' }, svg);
+  meter(150, 128, 'V');
+  [[34, 40], [150, 40], [150, 220], [286, 220]].forEach(([x, y]) => S('circle', { cx: x, cy: y, r: 3.5, fill: ink }, svg));
+})();
+
+/* ---------- E3 · explorar: tablero analógico y analizador de redes ---------- */
+const LOADS3 = [
+  { id: 'H', name: 'Horno', short: 'Horno', I: 2000 / 220, fp: 1 },
+  { id: 'M', name: 'Motor', short: 'Motor', I: 10, fp: 0.70 },
+  { id: 'V', name: 'Motor vacío', short: 'Vacío', I: 4, fp: 0.30 }
+];
+const E3 = (function e3() {
+  let cur = LOADS3[0], view = 'ana';
+  const calc = L => { const Sva = V * L.I, P = Sva * L.fp, Q = Sva * Math.sin(Math.acos(L.fp)); return { Sva, P, Q }; };
+  const log = Log('e3', {
+    key: it => it.id, sort: (a, b) => b.P - a.P,
+    row: it => `<span style="font-family:var(--sans)">${it.short}</span><span>${int(it.Sva)}</span><span>${int(it.P)}</span>`
+  });
+  // Dibuja un instrumento de aguja: escala de 0 a max
+  function dial(svg, letter, max, ticks) {
+    svg.replaceChildren();
+    const cx = 85, cy = 92, r = 70, a0 = rad(210), a1 = rad(330);
+    const pt = (a, rr) => [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
+    const [sx, sy] = pt(a0, r), [ex, ey] = pt(a1, r);
+    S('path', { d: `M${sx},${sy} A${r},${r} 0 0 1 ${ex},${ey}`, class: 'arc' }, svg);
+    for (let j = 0; j <= ticks; j++) { const a = a0 + (a1 - a0) * j / ticks, [x1, y1] = pt(a, r), [x2, y2] = pt(a, r - (j % 2 ? 6 : 11)); S('line', { x1, y1, x2, y2, class: 'tk' }, svg); }
+    txt(svg, cx, cy - 20, letter, 'lbl');
+    const n = S('line', { x1: cx, y1: cy, x2: cx, y2: cy - r + 6, class: 'ndl' }, svg);
+    n.style.transformOrigin = `${cx}px ${cy}px`;
+    S('circle', { cx, cy, r: 5, fill: css('--ink') }, svg);
+    return v => { n.style.transform = `rotate(${-60 + 120 * Math.min(1, v / max)}deg)`; };
+  }
+  const nV = dial($('#e3-dV'), 'V', 300, 6), nA = dial($('#e3-dA'), 'A', 15, 6), nW = dial($('#e3-dW'), 'W', 3000, 6);
+  function draw(record) {
+    const { Sva, P, Q } = calc(cur);
+    nV(V); nA(cur.I); nW(P);
+    $('#e3-rV').textContent = V + ' V';
+    $('#e3-rA').textContent = dec(cur.I, 1) + ' A';
+    $('#e3-rW').textContent = int(P) + ' W';
+    $('#e3-fp').textContent = fp2(cur.fp);
+    $('#e3-dig').innerHTML = [['V', dec(V, 1), 'V'], ['I', dec(cur.I, 2), 'A'], ['FP', fp2(cur.fp), cur.fp < 1 ? 'ind' : ''], ['P', int(P), 'W'], ['Q', int(Q), 'var'], ['S', int(Sva), 'VA']]
+      .map(([l, v, u]) => `<div class="dcell"><span class="cap">${l}</span><b>${v}<small>${u}</small></b></div>`).join('');
+    $$('#e3-loads .ch').forEach(b => b.classList.toggle('on', b.dataset.id === cur.id));
+    $$('#e3-tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+    $('#e3-ana').hidden = view !== 'ana'; $('#e3-dig').hidden = view !== 'dig';
+    if (record) log.add({ id: cur.id, name: cur.name, short: cur.short, Sva, P, fp: cur.fp });
+  }
+  const box = $('#e3-loads');
+  LOADS3.forEach(L => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ch'; b.dataset.id = L.id; b.textContent = L.name; b.style.setProperty('--k', css('--accent'));
+    b.addEventListener('click', () => { if (!log.items.length) { const c = calc(cur); log.seed({ id: cur.id, name: cur.name, short: cur.short, Sva: c.Sva, P: c.P, fp: cur.fp }); } cur = L; draw(true); });
+    box.appendChild(b);
+  });
+  $$('#e3-tabs .tab').forEach(b => b.addEventListener('click', () => { view = b.dataset.v; draw(false); }));
+  draw(false);
+  return { log };
+})();
+onEnter[SLIDES.indexOf($('#e3-meas').closest('.slide'))] = () => {
+  const it = [...E3.log.items].sort((a, b) => b.P - a.P), el = $('#e3-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const c = 'text-align:right; width:150px';
+  el.innerHTML = hdrRow(`<span>Carga</span><span style="margin-left:auto; ${c}">V × A</span><span style="${c}">W</span><span style="${c}">FP</span>`) +
+    it.map(x => `<div class="mrow"><span>${x.name}</span><span class="num" style="margin-left:auto; ${c}">${int(x.Sva)}</span><span class="num" style="${c}">${int(x.P)}</span><span class="num" style="${c}">${fp2(x.fp)}</span></div>`).join('');
+};
+
+/* ---------- E4 · situación: capacitor en paralelo con el motor ---------- */
+(function e4s() {
+  const svg = $('#e4s-svg'), ink = css('--ink');
+  S('circle', { cx: 40, cy: 125, r: 22, class: 'sch-box' }, svg);
+  S('path', { d: path(Math.sin, 26, 54, 125, 8, 0, 2 * PI, 40), class: 'sch', 'stroke-width': 2 }, svg);
+  S('path', { d: 'M40,103 V40 H270 V95 M40,147 V215 H270 V155 M170,40 V112 M170,128 V215', class: 'sch' }, svg);
+  S('circle', { cx: 270, cy: 125, r: 30, class: 'sch-box' }, svg); txt(svg, 270, 135, 'M', 'lbl');
+  S('path', { d: 'M150,112 H190 M150,128 H190', class: 'sch', 'stroke-width': 3 }, svg);
+  txt(svg, 142, 132, 'C', 'lbl', 'end');
+  [[170, 40], [170, 215]].forEach(([x, y]) => S('circle', { cx: x, cy: y, r: 3.5, fill: ink }, svg));
+  // flechas de Q: el motor pide (naranja), el capacitor entrega (verde)
+  arrow(svg, 230, 70, 258, 92, css('--i'), 3);
+  arrow(svg, 196, 108, 224, 86, css('--qc'), 3);
+  txt(svg, 100, 30, 'I red', 'lbl-m', 'middle');
+  arrow(svg, 70, 40, 128, 40, css('--accent'), 3);
+})();
+
+/* ---------- E4 · explorar: compensación con capacitor ---------- */
+const E4 = (function e4() {
+  const P = 1540, Qm = 1571, rng = $('#e4-c'), perUF = V * V * W50 * 1e-6;
+  const calc = C => { const Qc = perUF * C, Q = Qm - Qc, Sva = Math.hypot(P, Q); return { C, Qc, Q, Sva, fp: P / Sva, I: Sva / V }; };
+  const fmtFP = r => fp2(r.fp) + (Math.abs(r.Q) < 8 ? '' : r.Q > 0 ? ' ind.' : ' cap.');
+  const log = Log('e4', {
+    key: it => it.C, sort: (a, b) => a.C - b.C,
+    row: it => `<span>${it.C}</span><span>${fp2(it.fp)}</span><span>${dec(it.I, 1)}</span>`,
+    goal: it => it.fp >= 0.9495 && it.Q >= 0
+  });
+  function draw() {
+    const r = calc(+rng.value);
+    const tr = $('#e4-tr'); tr.replaceChildren();
+    const k = 0.069, x0 = 70, y0 = 16 + Qm * k, xP = x0 + P * k, yM = y0 - Qm * k, yR = y0 - r.Q * k;
+    // S original (referencia) punteada
+    S('line', { x1: x0, y1: y0, x2: xP, y2: yM, stroke: css('--target'), 'stroke-width': 2, 'stroke-dasharray': '6 5' }, tr);
+    arrow(tr, x0, y0, xP, y0, css('--ok'), 4);
+    arrow(tr, xP, y0, xP, yM, css('--i'), 4);
+    if (r.Qc > 1) arrow(tr, xP + 16, yM, xP + 16, yM + r.Qc * k, css('--qc'), 4);
+    arrow(tr, x0, y0, xP, yR, css('--ink'), 3.5);
+    txt(tr, (x0 + xP) / 2, y0 + 28, 'P', 'lbl', 'middle', css('--ok'));
+    txt(tr, xP + 30, yM + 22, 'Q motor', 'lbl', 'start', css('--i'));
+    if (r.Qc * k >= 40) txt(tr, xP + 30, yM + r.Qc * k / 2 + 40, 'Q capacitor', 'lbl', 'start', css('--qc'));
+    txt(tr, x0 - 8, (y0 + yR) / 2 + 4, 'S', 'lbl', 'end');
+    // corriente de la red: barra vertical con la marca de los 10 A originales
+    const bx = 500, bt = 16, bb = 174, Imax = 11, yI = v => bb - v / Imax * (bb - bt);
+    S('rect', { x: bx, y: bt, width: 26, height: bb - bt, fill: css('--line-2') }, tr);
+    S('rect', { x: bx, y: yI(r.I), width: 26, height: bb - yI(r.I), fill: css('--accent') }, tr);
+    S('line', { x1: bx - 8, x2: bx + 34, y1: yI(10), y2: yI(10), stroke: css('--ink-2'), 'stroke-width': 2, 'stroke-dasharray': '4 3' }, tr);
+    txt(tr, bx - 14, yI(10) + 10, '10 A', 'lbl-m', 'end');
+    txt(tr, bx + 13, bb + 0, '', 'lbl');
+    $('#e4-F').textContent = fmtFP(r);
+    $('#e4-I').textContent = dec(r.I, 1) + ' A';
+    const ok = r.fp >= 0.895;
+    const st = $('#e4-st'); st.textContent = ok ? 'Sin recargo' : 'Con recargo'; st.className = ok ? 'ok' : 'bad';
+    $('#e4-cv').textContent = r.C + ' µF';
+    return r;
+  }
+  rng.addEventListener('input', draw);
+  rng.addEventListener('change', () => log.add(draw()));
+  draw();
+  return { log, calc, fmtFP };
+})();
+onEnter[SLIDES.indexOf($('#e4-meas').closest('.slide'))] = () => {
+  const it = E4.log.items, el = $('#e4-meas');
+  if (!it.length) { el.innerHTML = noData; return; }
+  const rows = [['Sin capacitor', E4.calc(0)]];
+  const best = it.filter(x => x.fp >= 0.9495 && x.Q >= 0).sort((a, b) => a.C - b.C)[0];
+  if (best) rows.push([`Meta con ${best.C} µF`, best]);
+  const over = it.filter(x => x.Q < -8).sort((a, b) => b.C - a.C)[0];
+  if (over) rows.push([`Exagerado: ${over.C} µF`, over]);
+  if (rows.length === 1) { const b = [...it].sort((a, b) => b.fp - a.fp)[0]; rows.push([`Mejor: ${b.C} µF`, b]); }
+  const c = 'text-align:right; width:190px';
+  el.innerHTML = hdrRow(`<span></span><span style="margin-left:auto; ${c}">FP</span><span style="${c}">Corriente</span>`) +
+    rows.map(([t, r]) => `<div class="mrow"><span>${t}</span><span class="num" style="margin-left:auto; ${c}">${E4.fmtFP(r)}</span><span class="num" style="${c}">${dec(r.I, 1)} A</span></div>`).join('');
+};
+
+go(0);
+})();
+</script>
+</body>
+</html>
