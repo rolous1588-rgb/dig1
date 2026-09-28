@@ -54,6 +54,14 @@ Orden de primeros principios: representación, álgebra, diseño combinacional, 
 | Letra mínima legible desde el fondo | **28 px** (comprobado; coincide con la regla AVIXA de distancia ÷ 200 ≈ 3,6 cm) |
 | Obstáculo físico | Una etiqueta pegada en la esquina superior derecha del TV tapa un poco esa esquina |
 
+### 3b. Proyector Epson (desde el 28/09/2026)
+
+- El profesor también proyecta con un **proyector Epson**, duplicando la pantalla del celular. El proyector **recorta los costados**: su imagen (16:9, 16:10 o 4:3) es más angosta que la del celular (2,17 : 1).
+- **Modo proyector** (en el motor de cada clase): el lienzo de 848 × 390 se encoge y se centra dentro de la zona que el proyector sí muestra, con 3 % de margen. Los costados quedan en negro.
+- **Calibración:** la primera vez, al tocar "Empezar", aparecen tres marcos (16:9, 16:10, 4:3). Se elige el más ancho cuyos dos bordes se ven completos. Se guarda en el navegador y se puede cambiar desde el índice ☰ ("Ajustar al proyector") o desde la pantalla de inicio. También acepta `#formato=1.7778` en la dirección.
+- **Legibilidad:** en la pared, la letra de 28 px mide 28/848 del ancho de la imagen proyectada. Con una imagen de 2 m o más de ancho queda más grande que en el TV de 75" (mayúsculas de 4,7 cm frente a 3,9 cm).
+- **Diseño:** se sigue diseñando para 848 × 390 con letra mínima de 28 px; el modo proyector solo cambia la escala.
+
 ---
 
 ## 4. Especificación técnica del "modo TV"

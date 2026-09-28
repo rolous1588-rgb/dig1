@@ -60,7 +60,7 @@ button:focus-visible, input:focus-visible{outline:2px solid var(--accent); outli
 /* Índice */
 #index{position:absolute; inset:0; z-index:30; background:color-mix(in srgb, var(--bg) 96%, transparent); display:flex; flex-direction:column; padding:18px 28px; gap:6px}
 #index .cap{margin-bottom:6px}
-#index button{display:flex; align-items:center; gap:16px; height:40px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); text-align:left; font-size:18px}
+#index button{display:flex; align-items:center; gap:16px; height:36px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); text-align:left; font-size:18px}
 #index button b{font-family:var(--mono); font-weight:500; color:var(--muted); width:52px}
 #index button.cur{border-color:var(--accent); box-shadow:inset 3px 0 0 var(--accent)}
 
@@ -178,10 +178,37 @@ svg text{font-family:var(--sans); fill:var(--ink)}
 #rotate{position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; text-align:center; padding:32px; background:#0A0D12; color:#fff; font:500 24px/1.3 var(--sans)}
 @media (orientation:portrait){ #rotate{display:flex} }
 @media (prefers-reduced-motion:reduce){ .track{transition:none} .fan-blades,.fan.shake{animation:none} .log li.new{animation:none} }
+
+/* Modo proyector: calibración de la zona segura (fuera del lienzo, a escala de la pantalla) */
+#calib{position:fixed; inset:0; z-index:60; background:#0A0D12}
+#calib .cf{position:fixed; top:0; bottom:0; border:4px solid var(--c); border-top:0; border-bottom:0}
+#calib .cf span{position:absolute; left:10px; font:600 20px/1 var(--sans); color:var(--c)}
+#calib .cbar{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:10px; padding:12px 14px; background:#161C25; border-radius:6px}
+#calib .cbar p{margin:0; font:500 16px/1.3 var(--sans); color:#DCE3EC; text-align:center}
+#calib .cbar div{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
+#calib .cbar button{height:44px; padding:0 14px; border-radius:4px; border:2px solid var(--c, #8C97A5); background:transparent; color:#fff; font:600 18px var(--sans)}
+#calib .cbar button.on{background:var(--c, #8C97A5); color:#0A0D12}
+.start .fmt{font-size:16px; color:var(--muted); display:flex; align-items:center; gap:10px}
+.start .fmt button{height:40px; padding:0 14px; border:1px solid var(--line); border-radius:4px; background:var(--panel); font-size:16px}
 </style>
 </head>
 <body>
 <div id="rotate">Gira el celular en horizontal.</div>
+<div id="calib" hidden>
+  <div class="cf" data-a="1.7778" style="--c:#3B82F6"><span style="top:22%">16:9</span></div>
+  <div class="cf" data-a="1.6" style="--c:#10B981"><span style="top:42%">16:10</span></div>
+  <div class="cf" data-a="1.3333" style="--c:#F59E0B"><span style="top:62%">4:3</span></div>
+  <div class="cbar">
+    <p>Elija el marco más ancho cuyos <b>dos</b> bordes se ven completos en la proyección.</p>
+    <div>
+      <button type="button" data-a="1.7778" style="--c:#3B82F6">16:9</button>
+      <button type="button" data-a="1.6" style="--c:#10B981">16:10</button>
+      <button type="button" data-a="1.3333" style="--c:#F59E0B">4:3</button>
+      <button type="button" data-a="0">Sin recorte (TV)</button>
+    </div>
+  </div>
+</div>
+
 
 <div id="stage">
   <div class="view" id="view">
@@ -481,7 +508,7 @@ svg text{font-family:var(--sans); fill:var(--ink)}
     <h1>El inversor que hace zumbar al ventilador</h1>
     <p>Un caso real y cinco ejercicios. Pasen de pantalla deslizando el dedo; el botón ☰ de arriba abre el índice.</p>
     <button type="button" class="go" id="b-start">Empezar</button>
-    <p style="font-size:14px; color:var(--muted)">Al empezar se activa la pantalla completa.</p>
+    <p class="fmt">Al empezar se activa la pantalla completa. · Formato: <b id="fmt-lbl"></b><button type="button" id="b-fmt">Ajustar al proyector</button></p>
   </div>
 </div>
 
@@ -508,8 +535,19 @@ const N = SLIDES.length, W = 848;
 let idx = 0, scale = 1, started = false;
 const onEnter = {};   // funciones que se ejecutan al llegar a una pantalla (por índice)
 
+// Formato de proyección: 0 = sin recorte (TV). Con proyector, el lienzo se encoge y se centra
+// dentro de la zona que el proyector sí muestra (16:9, 16:10 o 4:3); los costados quedan vacíos.
+const FMT_KEY = 'formato-proyeccion';
+let aspect = 0, fmtSaved = false;
+try { const v = localStorage.getItem(FMT_KEY); if (v !== null) { aspect = +v || 0; fmtSaved = true; } } catch (e) {}
+const fmtHash = location.hash.match(/formato=([\d.]+)/); if (fmtHash) { aspect = +fmtHash[1] || 0; fmtSaved = true; }
+const fmtName = a => !a ? 'sin recorte (TV)' : a > 1.7 ? '16:9' : a > 1.5 ? '16:10' : '4:3';
 function fit() {
-  scale = Math.min(window.innerWidth / 848, window.innerHeight / 390);
+  // margen de 3 % con proyector: las orillas de la imagen proyectada suelen perderse (enfoque, trapecio)
+  const safeW = aspect ? Math.min(window.innerWidth, window.innerHeight * aspect) * 0.97 : window.innerWidth;
+  scale = Math.min(safeW / 848, window.innerHeight / 390);
+  const lbl = document.getElementById('fmt-lbl'); if (lbl) lbl.textContent = fmtName(aspect);
+  if (!$('#calib').hidden) layoutCalib();
   stage.style.setProperty('--s', scale);
   $('#fsback').hidden = !started || !!document.fullscreenElement || !document.fullscreenEnabled;
 }
@@ -523,7 +561,21 @@ async function enterFS() {
 }
 document.addEventListener('visibilitychange', () => { if (started && document.visibilityState === 'visible') { try { navigator.wakeLock && navigator.wakeLock.request('screen'); } catch (e) {} } });
 $('#fsback').addEventListener('click', enterFS);
-$('#b-start').addEventListener('click', () => { started = true; $('#start').hidden = true; enterFS(); });
+$('#b-start').addEventListener('click', () => { started = true; $('#start').hidden = true; enterFS().then(() => { if (!fmtSaved) setTimeout(openCalib, 350); }); });
+function layoutCalib() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  $$('#calib .cf').forEach(f => { const w = Math.min(vw, vh * +f.dataset.a); f.style.left = (vw - w) / 2 + 'px'; f.style.width = w + 'px'; });
+  $('#calib .cbar').style.maxWidth = Math.min(vw, vh * 4 / 3) - 16 + 'px';
+  $$('#calib .cbar button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.a - aspect) < 0.01));
+}
+function openCalib() { $('#calib').hidden = false; layoutCalib(); }
+$('#calib').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  aspect = +b.dataset.a; fmtSaved = true;
+  try { localStorage.setItem(FMT_KEY, String(aspect)); } catch (err) {}
+  $('#calib').hidden = true; fit();
+});
+$('#b-fmt').addEventListener('click', () => { enterFS().then(() => setTimeout(openCalib, 350)); });
 fit();
 
 function go(i) {
@@ -588,11 +640,12 @@ function openIndex() {
     const first = SLIDES.findIndex(s => +s.dataset.ex === i);
     const [a, b] = t.split(' · ');
     return `<button type="button" data-go="${first}" class="${i === cur ? 'cur' : ''}"><b>${b ? a : '—'}</b>${b || a}</button>`;
-  }).join('');
+  }).join('') + `<button type="button" data-calib><b>⛶</b>Ajustar al proyector · ${fmtName(aspect)}</button>`;
   box.hidden = false;
 }
 stage.addEventListener('click', e => {
   if (e.target.closest('.hd .menu')) { openIndex(); return; }
+  if (e.target.closest('#index [data-calib]')) { $('#index').hidden = true; openCalib(); return; }
   const g = e.target.closest('#index [data-go]');
   if (g) { $('#index').hidden = true; go(+g.dataset.go); return; }
   if (e.target.closest('#index')) { $('#index').hidden = true; return; }
