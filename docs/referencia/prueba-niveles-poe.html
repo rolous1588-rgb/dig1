@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Niveles lógicos: prueba</title>
+<style>
+:root{
+  --paper:#EEF2F0; --surface:#FFFFFF; --ink:#14201B; --muted:#536159; --line:#CFD8D3;
+  --digital:#1C4DB3;
+  --led:#E0302A; --led-off:#E6D6D5; --led-rim:#B9A3A2;
+  --zero:#D9E0DD; --one:#F8D6D2; --one-ink:#B3231D; --undef:#A67600; --undef-soft:#F5E6B8;
+  --board:#1B2A25; --board-2:#263932; --board-ink:#F1F6F3; --board-muted:#A3B8AF; --board-line:#445C53;
+  --chalk:#F2C94C;
+  --mono:ui-monospace,"Roboto Mono","Droid Sans Mono",monospace;
+  --sans:Roboto,"Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; background:#050807; overflow:hidden}
+body{font-family:var(--sans); color:var(--ink); -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none}
+[hidden]{display:none!important}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation; margin:0}
+button:focus-visible, input:focus-visible{outline:3px solid var(--chalk); outline-offset:2px}
+
+#stage{position:absolute; left:50%; top:50%; width:848px; height:390px; margin:-195px 0 0 -424px; transform:scale(var(--s,1)); background:var(--paper); overflow:hidden}
+.view{position:absolute; inset:0; overflow:hidden; overflow:clip; touch-action:none}
+.track{display:flex; height:100%; will-change:transform; transition:transform .32s cubic-bezier(.2,.7,.2,1)}
+.track.drag{transition:none}
+.slide{flex:0 0 848px; height:100%; overflow:hidden; position:relative}
+.dark{background:var(--board); color:var(--board-ink)}
+.eyebrow{margin:0; font-size:18px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--chalk)}
+.light .eyebrow{color:var(--digital)}
+
+/* 1 · Predecir */
+#s-pred{display:flex; flex-direction:column; justify-content:center; gap:18px; padding:20px 48px}
+.bigq{margin:0; font-size:40px; line-height:1.15; font-weight:700; max-width:740px}
+.opts{display:flex; gap:14px}
+.opt{flex:1 1 0; height:96px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 18px 0 22px;
+  border-radius:14px; border:2px solid var(--board-line); background:var(--board-2); color:var(--board-ink)}
+.opt .ol{font-size:30px; font-weight:700; white-space:nowrap}
+.opt .oc{min-width:56px; height:56px; border-radius:28px; display:flex; align-items:center; justify-content:center; padding:0 10px;
+  background:var(--board); border:2px solid var(--board-line); font-family:var(--mono); font-size:30px; font-weight:700; color:var(--chalk)}
+.opt:active{transform:scale(.98)}
+.opt.bump .oc{animation:bump .25s ease-out}
+@keyframes bump{50%{transform:scale(1.18)}}
+.hint{margin:0; display:flex; align-items:center; gap:16px; font-size:17px; color:var(--board-muted)}
+.lnk{border:0; background:transparent; padding:6px 0; font-size:16px; font-weight:700; text-decoration:underline; text-underline-offset:3px}
+.dark .lnk{color:var(--board-muted)} .light .lnk{color:var(--muted)}
+
+/* 2 · Observar */
+#s-obs{display:grid; grid-template-columns:minmax(0,1fr) 262px; grid-template-rows:minmax(0,1fr)}
+.obs-main{display:flex; flex-direction:column; gap:4px; padding:12px 18px 8px; min-height:0}
+.fig{flex:1 1 auto; min-height:0}
+.fig svg{display:block; width:100%; height:100%}
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:50px; background:transparent; margin:0; touch-action:none}
+input[type=range]::-webkit-slider-runnable-track{height:10px; border-radius:5px; background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:42px; height:42px; margin-top:-16px; border-radius:50%;
+  background:var(--digital); border:5px solid var(--surface); box-shadow:0 0 0 2px var(--digital)}
+input[type=range]::-moz-range-track{height:10px; border-radius:5px; background:var(--line)}
+input[type=range]::-moz-range-thumb{width:34px; height:34px; border-radius:50%; background:var(--digital); border:5px solid var(--surface); box-shadow:0 0 0 2px var(--digital)}
+.strip{background:var(--surface); border-left:1px solid var(--line); padding:12px 14px 8px; display:flex; flex-direction:column; gap:6px; min-height:0}
+.strip-h{margin:0; font-size:17px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+#log{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; flex:1 1 auto; min-height:0; overflow:hidden}
+#log li{display:flex; justify-content:space-between; align-items:center; height:34px; padding:0 12px; border-radius:7px;
+  font-family:var(--mono); font-size:26px; font-weight:700; font-variant-numeric:tabular-nums}
+#log li b{font-size:28px}
+#log li.new{animation:flash .6s ease-out}
+@keyframes flash{from{box-shadow:0 0 0 3px var(--digital)}}
+.r0{background:var(--zero); color:var(--ink)}
+.rx{background:var(--undef-soft); color:#7A5700}
+.r1{background:var(--one); color:var(--one-ink)}
+.empty{margin:0; font-size:21px; line-height:1.3; color:var(--muted)}
+
+/* 3 · Explicar */
+#s-exp{display:flex; flex-direction:column; gap:12px; padding:16px 44px 14px}
+.cols{display:grid; grid-template-columns:1.1fr 1fr; gap:32px}
+.sub{margin:0 0 8px; font-size:17px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--board-muted)}
+.vrow{display:grid; grid-template-columns:150px minmax(0,1fr) 44px 28px; align-items:center; gap:10px; height:40px; font-size:24px; font-weight:700}
+.vbar{height:22px; border-radius:4px; background:var(--board-2); overflow:hidden}
+.vbar i{display:block; height:100%; background:var(--board-muted)}
+.vrow b{font-family:var(--mono); text-align:right}
+.vrow .ok{color:var(--chalk); font-size:26px}
+.vrow.win{color:var(--chalk)} .vrow.win .vbar i{background:var(--chalk)}
+.m{margin:0; height:40px; display:flex; align-items:center; gap:12px; font-size:26px; font-weight:700}
+.m .tag{min-width:44px; height:34px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:26px}
+.m .t0{background:var(--zero); color:var(--ink)} .m .tx{background:var(--undef-soft); color:#7A5700} .m .t1{background:var(--one); color:var(--one-ink)}
+.none{margin:0; font-size:22px; color:var(--board-muted); line-height:1.3}
+.idea-area{margin-top:auto; border-top:1px dashed var(--board-line); padding-top:12px; min-height:128px; display:flex; flex-direction:column; justify-content:center}
+.b-idea{align-self:flex-start; height:56px; padding:0 26px; border-radius:12px; border:0; background:var(--chalk); color:var(--board); font-size:22px; font-weight:700}
+.idea{margin:0; font-size:30px; line-height:1.2; font-weight:700}
+.idea span{display:block; margin-bottom:4px; font-size:16px; letter-spacing:.14em; text-transform:uppercase; color:var(--chalk)}
+
+/* SVG */
+svg text{font-family:var(--sans); fill:var(--ink)}
+.band0{fill:var(--zero)} .band1{fill:var(--one)}
+.hbg{fill:var(--undef-soft)} .hl{stroke:var(--undef); stroke-width:3; stroke-opacity:.5}
+.gauge{fill:none; stroke:var(--ink); stroke-width:2}
+.bandl{font-size:30px; font-weight:700}
+.thr{stroke:var(--undef); stroke-width:3; stroke-dasharray:8 5}
+.thrl{fill:var(--undef); font-size:24px; font-weight:700}
+.mk{fill:var(--ink)} .mkl{stroke:var(--ink); stroke-width:5}
+.pt{stroke:var(--surface); stroke-width:2} .pt0{fill:var(--muted)} .ptx{fill:var(--undef)} .pt1{fill:var(--led)}
+.vl{fill:var(--muted); font-size:22px; font-weight:700; letter-spacing:.08em}
+.vv{font-family:var(--mono); font-size:54px; font-weight:700}
+.led-c{stroke:var(--led-rim); stroke-width:3} .led-c.on{fill:var(--led)} .led-c.off{fill:var(--led-off)}
+.glow{stop-color:var(--led)}
+.lee{font-size:40px; font-weight:700}
+.led-x{animation:flick 1.1s steps(1) infinite}
+@keyframes flick{0%,100%{opacity:1} 15%{opacity:.2} 30%{opacity:.9} 45%{opacity:.1} 60%{opacity:.8} 78%{opacity:.25}}
+
+/* Inicio */
+.start{position:absolute; inset:0; z-index:40; background:var(--paper); display:flex; flex-direction:column; justify-content:center; gap:16px; padding:24px 56px}
+.start h1{margin:0; font-size:36px; line-height:1.1}
+.start p{margin:0; font-size:21px; color:var(--muted); max-width:700px}
+.go{align-self:flex-start; height:64px; padding:0 30px; border-radius:12px; border:0; background:var(--digital); color:#fff; font-size:24px; font-weight:700}
+.fsback{position:absolute; left:12px; bottom:12px; z-index:35; height:40px; padding:0 14px; border-radius:999px; border:0; background:var(--ink); color:#fff; font-size:15px; font-weight:700; opacity:.9}
+#rotate{position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; text-align:center; padding:32px; background:#050807; color:#fff; font:700 26px/1.3 var(--sans)}
+@media (orientation:portrait){ #rotate{display:flex} }
+@media (prefers-reduced-motion:reduce){ .track{transition:none} .led-x{animation:none; opacity:.5} .opt.bump .oc, #log li.new{animation:none} }
+</style>
+</head>
+<body>
+<div id="rotate">Gira el celular en horizontal.</div>
+
+<div id="stage">
+  <div class="view" id="view">
+    <div class="track" id="track">
+
+      <!-- 1 · Predecir -->
+      <section class="slide dark" id="s-pred" aria-label="Predecir">
+        <p class="eyebrow">Predecir · 1 de 3</p>
+        <h2 class="bigq">Con 1,5 V en la entrada, ¿la compuerta TTL lee 0 o 1?</h2>
+        <div class="opts">
+          <button type="button" class="opt" data-o="0"><span class="ol">Lee 0</span><span class="oc">0</span></button>
+          <button type="button" class="opt" data-o="1"><span class="ol">Lee 1</span><span class="oc">0</span></button>
+          <button type="button" class="opt" data-o="x"><span class="ol">No se sabe</span><span class="oc">0</span></button>
+        </div>
+        <p class="hint">Cuenten las manos levantadas y toquen cada opción una vez por mano.
+          <button type="button" class="lnk" id="v-reset">Borrar votos</button></p>
+      </section>
+
+      <!-- 2 · Observar -->
+      <section class="slide light" id="s-obs" aria-label="Observar">
+        <div class="obs-main">
+          <p class="eyebrow">Observar · 2 de 3</p>
+          <div class="fig"><svg id="svg-niv" viewBox="0 0 560 250" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Voltaje de entrada y lectura de la compuerta"></svg></div>
+          <input type="range" id="r-vin" min="0" max="5" step="0.05" value="0.4" aria-label="Voltaje de entrada">
+        </div>
+        <aside class="strip">
+          <p class="strip-h">Sus pruebas</p>
+          <ol id="log" aria-live="polite"></ol>
+          <p class="empty" id="log-empty">Muevan el voltaje y suelten: cada prueba se anota aquí.</p>
+          <button type="button" class="lnk" id="log-reset" hidden>Borrar pruebas</button>
+        </aside>
+      </section>
+
+      <!-- 3 · Explicar -->
+      <section class="slide dark" id="s-exp" aria-label="Explicar">
+        <p class="eyebrow">Explicar · 3 de 3</p>
+        <div class="cols">
+          <div><p class="sub">Lo que predijeron</p><div id="votes"></div></div>
+          <div><p class="sub">Lo que midieron</p><div id="meas"></div></div>
+        </div>
+        <div class="idea-area">
+          <button type="button" class="b-idea" id="b-idea">Mostrar idea clave</button>
+          <p class="idea" id="idea" hidden><span>Idea clave</span>La compuerta no mide: decide. Debajo de 0,8 V lee 0; encima de 2,0 V lee 1; en medio no hay garantía.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <button type="button" class="fsback" id="fsback" hidden>⛶ Volver a pantalla completa</button>
+
+  <div class="start" id="start">
+    <h1>Niveles lógicos en tres pantallas</h1>
+    <p>Predecir, observar y explicar. Pasen de una pantalla a otra deslizando el dedo hacia la izquierda.</p>
+    <button type="button" class="go" id="b-start">Empezar</button>
+    <p style="font-size:17px">Al empezar se activa la pantalla completa.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function S(tag, a, p) { const e = document.createElementNS(NS, tag); if (a) for (const k in a) { if (k === 'text') e.textContent = a[k]; else e.setAttribute(k, a[k]); } if (p) p.appendChild(e); return e; }
+const nf = v => v.toLocaleString('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const VIL = 0.8, VIH = 2.0;
+const read = v => v <= VIL ? '0' : v >= VIH ? '1' : 'x';
+const sym = r => r === 'x' ? '?' : r;
+
+const stage = $('#stage'), view = $('#view'), track = $('#track');
+const N = 3, W = 848;
+let idx = 0, scale = 1, started = false;
+const votes = { '0': 0, '1': 0, x: 0 };
+let log = [];            // pruebas en orden de llegada: {v, r}
+let ideaShown = false;
+
+/* ---------- Escala y pantalla completa ---------- */
+function fit() {
+  scale = Math.min(window.innerWidth / 848, window.innerHeight / 390);
+  stage.style.setProperty('--s', scale);
+  $('#fsback').hidden = !started || !!document.fullscreenElement || !document.fullscreenEnabled;
+}
+window.addEventListener('resize', fit);
+document.addEventListener('fullscreenchange', () => setTimeout(fit, 100));
+async function enterFS() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
+  try { await screen.orientation.lock('landscape'); } catch (e) {}
+  fit();
+}
+$('#fsback').addEventListener('click', enterFS);
+$('#b-start').addEventListener('click', () => { started = true; $('#start').hidden = true; enterFS(); });
+fit();
+
+/* ---------- Galería ---------- */
+function go(i) {
+  idx = Math.max(0, Math.min(N - 1, i));
+  track.style.transform = `translateX(${-idx * W}px)`;
+  view.scrollLeft = 0;
+  if (idx === 2) renderExp();
+}
+let drag = null;
+view.addEventListener('pointerdown', e => {
+  if (e.target.closest('button, input')) return;
+  drag = { x: e.clientX, y: e.clientY, id: e.pointerId, dx: 0, t: performance.now(), lock: null };
+});
+view.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x) / scale, dy = (e.clientY - drag.y) / scale;
+  if (drag.lock === null && Math.hypot(dx, dy) > 10) {
+    drag.lock = Math.abs(dx) > Math.abs(dy);
+    if (drag.lock) { track.classList.add('drag'); try { view.setPointerCapture(e.pointerId); } catch (_) {} }
+  }
+  if (drag.lock) {
+    drag.dx = dx;
+    const edge = (idx === 0 && dx > 0) || (idx === N - 1 && dx < 0);
+    track.style.transform = `translateX(${-idx * W + (edge ? dx * 0.3 : dx)}px)`;
+  }
+});
+function endDrag() {
+  if (!drag) return;
+  track.classList.remove('drag');
+  if (drag.lock) {
+    const v = drag.dx / Math.max(1, performance.now() - drag.t);
+    if (drag.dx < -80 || v < -0.6) go(idx + 1);
+    else if (drag.dx > 80 || v > 0.6) go(idx - 1);
+    else go(idx);
+  }
+  drag = null;
+}
+view.addEventListener('pointerup', endDrag);
+view.addEventListener('pointercancel', endDrag);
+view.addEventListener('scroll', () => { if (view.scrollLeft) view.scrollLeft = 0; });
+document.addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input')) return;
+  if (e.key === 'ArrowRight') go(idx + 1);
+  if (e.key === 'ArrowLeft') go(idx - 1);
+});
+
+/* ---------- 1 · Predecir ---------- */
+function renderVotes() { $$('.opt').forEach(b => { $('.oc', b).textContent = votes[b.dataset.o]; }); }
+$$('.opt').forEach(b => b.addEventListener('click', () => {
+  votes[b.dataset.o]++; renderVotes();
+  b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+}));
+$('#v-reset').addEventListener('click', () => { votes['0'] = votes['1'] = votes.x = 0; renderVotes(); });
+
+/* ---------- 2 · Observar ---------- */
+function drawNiv() {
+  const V = +$('#r-vin').value, r = read(V);
+  const svg = $('#svg-niv'); svg.replaceChildren();
+  const defs = S('defs', null, svg);
+  const pat = S('pattern', { id: 'hatch', width: 12, height: 12, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
+  S('rect', { width: 12, height: 12, class: 'hbg' }, pat); S('line', { x1: 0, y1: 0, x2: 0, y2: 12, class: 'hl' }, pat);
+  const gr = S('radialGradient', { id: 'glow' }, defs);
+  S('stop', { offset: '0%', class: 'glow', 'stop-opacity': '.6' }, gr); S('stop', { offset: '100%', class: 'glow', 'stop-opacity': '0' }, gr);
+  const GX = 40, GW = 78, GT = 8, GB = 242, gv = v => GB - v / 5 * (GB - GT);
+  S('rect', { x: GX, y: gv(VIL), width: GW, height: gv(0) - gv(VIL), class: 'band0' }, svg);
+  S('rect', { x: GX, y: gv(VIH), width: GW, height: gv(VIL) - gv(VIH), fill: 'url(#hatch)' }, svg);
+  S('rect', { x: GX, y: gv(5), width: GW, height: gv(VIH) - gv(5), class: 'band1' }, svg);
+  S('rect', { x: GX, y: GT, width: GW, height: GB - GT, class: 'gauge' }, svg);
+  [[3.5, '1'], [1.4, '?'], [0.4, '0']].forEach(([v, t]) => S('text', { x: GX + 28, y: gv(v) + 11, 'text-anchor': 'middle', class: 'bandl', text: t }, svg));
+  [[VIH, '2,0 V'], [VIL, '0,8 V']].forEach(([v, t]) => {
+    S('line', { x1: GX, x2: GX + GW + 10, y1: gv(v), y2: gv(v), class: 'thr' }, svg);
+    S('text', { x: GX + GW + 14, y: gv(v) + 9, class: 'thrl', text: t }, svg);
+  });
+  // pruebas anotadas: puntos sobre el borde derecho de la escala
+  log.forEach(p => S('circle', { cx: GX + GW - 16, cy: gv(p.v), r: 7, class: 'pt pt' + p.r }, svg));
+  const y = gv(V);
+  S('line', { x1: GX - 2, x2: GX + GW + 2, y1: y, y2: y, class: 'mkl' }, svg);
+  S('path', { d: `M${GX - 4},${y} L${GX - 24},${y - 12} L${GX - 24},${y + 12} z`, class: 'mk' }, svg);
+  S('text', { x: 262, y: 38, class: 'vl', text: 'ENTRADA' }, svg);
+  S('text', { x: 262, y: 96, class: 'vv', text: `${nf(V)} V` }, svg);
+  const LX = 298, LY = 180;
+  if (r !== '0') S('circle', { cx: LX, cy: LY, r: 64, fill: 'url(#glow)', class: r === 'x' ? 'led-x' : '' }, svg);
+  S('circle', { cx: LX, cy: LY, r: 36, class: 'led-c ' + (r === '0' ? 'off' : 'on') + (r === 'x' ? ' led-x' : '') }, svg);
+  S('text', { x: 352, y: 194, class: 'lee', text: `Lee ${sym(r)}` }, svg);
+}
+function renderLog(fresh) {
+  const ol = $('#log'); ol.replaceChildren();
+  [...log].sort((a, b) => b.v - a.v).forEach(p => {
+    const li = document.createElement('li');
+    li.className = 'r' + p.r + (fresh === p ? ' new' : '');
+    li.innerHTML = `<span>${nf(p.v)} V</span><b>${sym(p.r)}</b>`;
+    ol.appendChild(li);
+  });
+  $('#log-empty').hidden = log.length > 0;
+  $('#log-reset').hidden = log.length === 0;
+}
+function addTest() {
+  const v = Math.round(+$('#r-vin').value * 20) / 20;
+  log = log.filter(p => Math.abs(p.v - v) > 1e-9);
+  const p = { v, r: read(v) };
+  log.push(p);
+  if (log.length > 7) log.shift();       // se quedan las 7 más recientes
+  renderLog(p); drawNiv();
+}
+const rng = $('#r-vin');
+rng.addEventListener('input', drawNiv);
+rng.addEventListener('change', addTest);
+$('#log-reset').addEventListener('click', () => { log = []; renderLog(); drawNiv(); });
+
+/* ---------- 3 · Explicar ---------- */
+function renderExp() {
+  const total = votes['0'] + votes['1'] + votes.x;
+  const vb = $('#votes');
+  if (!total) vb.innerHTML = '<p class="none">No se anotaron votos.</p>';
+  else {
+    const max = Math.max(votes['0'], votes['1'], votes.x);
+    vb.innerHTML = [['0', 'Lee 0'], ['1', 'Lee 1'], ['x', 'No se sabe']].map(([k, l]) =>
+      `<div class="vrow${k === 'x' ? ' win' : ''}"><span>${l}</span><span class="vbar"><i style="width:${(votes[k] / max * 100).toFixed(0)}%"></i></span><b>${votes[k]}</b><span class="ok">${k === 'x' ? '✓' : ''}</span></div>`).join('');
+  }
+  const mb = $('#meas');
+  if (!log.length) { mb.innerHTML = '<p class="none">Aún no hay pruebas. Vuelvan a la pantalla anterior.</p>'; return; }
+  const by = r => log.filter(p => p.r === r).map(p => p.v);
+  const z = by('0'), x = by('x'), o = by('1'), rows = [];
+  if (o.length) rows.push(`<p class="m"><span class="tag t1">1</span>desde ${nf(Math.min(...o))} V</p>`);
+  if (x.length) rows.push(`<p class="m"><span class="tag tx">?</span>${x.length > 1 ? `entre ${nf(Math.min(...x))} y ${nf(Math.max(...x))} V` : `en ${nf(x[0])} V`}</p>`);
+  if (z.length) rows.push(`<p class="m"><span class="tag t0">0</span>hasta ${nf(Math.max(...z))} V</p>`);
+  mb.innerHTML = rows.join('');
+}
+$('#b-idea').addEventListener('click', () => { ideaShown = true; $('#b-idea').hidden = true; $('#idea').hidden = false; });
+$('#idea').addEventListener('click', () => { ideaShown = false; $('#b-idea').hidden = false; $('#idea').hidden = true; });
+
+renderVotes(); drawNiv(); renderLog(); renderExp(); go(0);
+})();
+</script>
+</body>
+</html>
